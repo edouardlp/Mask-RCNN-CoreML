@@ -45,9 +45,8 @@ import os.signpost
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
         let log = OSLog(subsystem: "PyramidROIAlign", category: OSLog.Category.pointsOfInterest)
-        os_signpost(.begin, log: log, name: "Eval")
+        os_signpost(.begin, log: log, name: "Pyramid-Eval")
         let device = MTLCreateSystemDefaultDevice()!
-        let start = Date().timeIntervalSince1970
         let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: 1)!
 
         let rois = inputs[0]
@@ -111,9 +110,7 @@ import os.signpost
             }
 
         }
-        os_signpost(.end, log: log, name: "Eval")
-        let finished = Date().timeIntervalSince1970
-        print("Pyramid \(finished-start)")
+        os_signpost(.end, log: log, name: "Pyramid-Eval")
     }
     
 }

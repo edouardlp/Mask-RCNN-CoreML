@@ -87,7 +87,6 @@ import Accelerate
             }
         }
         
-        print("ROI: \(outputs[0][0]),\(outputs[0][1]),\(outputs[0][2]),\(outputs[0][3])")
         os_signpost(.end, log: log, name: "Proposal-Eval")
     }
     
