@@ -237,7 +237,7 @@ class FPNMaskGraph():
         feature_maps = self.feature_maps
         num_classes= self.num_classes
 
-        COCO_MODEL_PATH = "mask_rcnn_coco.h5"
+        COCO_MODEL_PATH = "Data/weights.h5"
         fpn_mask_model = self._build_inner_model()
         fpn_mask_model.load_weights(COCO_MODEL_PATH, by_name=True)
 

@@ -1,11 +1,11 @@
 # Mask-RCNN-CoreML
 Mask-RCNN for Core ML (WORK IN PROGRESS)
 
-## Features
+## Upcoming Features
 
-- [] CoreML inference of https://github.com/matterport/Mask_RCNN pretrained weights
-- [] Mobile-optimized backbone
-- [] Support for pose estimation
+- CoreML inference of https://github.com/matterport/Mask_RCNN pretrained weights
+- Mobile-optimized backbone
+- Support for pose estimation
 
 ## Goals
 

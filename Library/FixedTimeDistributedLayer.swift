@@ -32,7 +32,7 @@ import Accelerate
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         return
-        let model = FPNMask().model
+        let model = Mask().model
         let predictionOptions = MLPredictionOptions()
         predictionOptions.usesCPUOnly = true
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, featureNames: self.featureNames)

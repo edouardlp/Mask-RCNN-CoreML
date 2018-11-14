@@ -32,7 +32,7 @@ class ProposalLayer(keras.engine.Layer):
         deltas = inputs[1]
         deltas = deltas * np.reshape(self.RPN_BBOX_STD_DEV, [1, 1, 4])
         # Anchors
-        anchors = np.load("anchors.npy")
+        anchors = np.load("Data/anchors.npy")
         anchors = np.broadcast_to(anchors, (1,) + anchors.shape)
 
         # Improve performance by trimming to top anchors by score

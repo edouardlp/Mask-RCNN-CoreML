@@ -6,3 +6,6 @@ Data/*.npy
 
 *.idea
 *.xcuserdatad
+*/venv/
+*/__pycache__/
+*.pyc
