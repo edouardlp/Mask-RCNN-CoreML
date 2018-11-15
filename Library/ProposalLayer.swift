@@ -78,15 +78,16 @@ import Accelerate
         let resultBoxesPointer = UnsafeMutablePointer<Float>(&resultBoxes)
         clipBoxes(boxesPointer: resultBoxesPointer, elementCount: Int(numberOfElementsToProcess))
         let resultIndices = nonMaxSupression(boxes: resultBoxes,
-                                             indices: Array(0 ..< sortedAnchors.count),
+                                             indices: Array(0 ..< resultBoxes.count),
                                              iouThreshold: 0.7,
                                              max: 1000)
+        
         for (i,resultIndex) in resultIndices.enumerated() {
             for j in 0 ..< 4 {
                 outputs[0][i*4+j] = resultBoxes[resultIndex*4+j] as NSNumber
             }
         }
-        
+
         os_signpost(.end, log: log, name: "Proposal-Eval")
     }
     

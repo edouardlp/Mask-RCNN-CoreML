@@ -50,6 +50,7 @@ import Accelerate
         let scoresPointer = UnsafeMutablePointer<Float>(&scores)
 
         //Start from all indices of rois. Omit background class and apply threshold
+        
         var filteredIndices = indicesOfRoisWithHighScores(scores: UnsafeMutablePointer<Float>(&scores),
                                                           threshold: 0.3,
                                                           count: UInt(scores.count))
@@ -58,18 +59,17 @@ import Accelerate
             let classId = classIds[intIndex]
             return classId > 0
         }
-        let filteredIndicesPointer = UnsafeMutablePointer<Float>(&filteredIndices)
         
         //Gather based on filtered indices
         
         var filteredRois = gather(values: roisPointer,
                                   valueSize: 4,
-                                  indices: filteredIndicesPointer,
+                                  indices: filteredIndices,
                                   indicesLength: UInt(filteredIndices.count))
-        
+
         let filteredScores = gather(values: scoresPointer,
                                     valueSize: 1,
-                                    indices: filteredIndicesPointer,
+                                    indices: filteredIndices,
                                     indicesLength: UInt(filteredIndices.count))
         
         var floatClass:[Float] = Array<Float>(classIds.map({ (integerValue) -> Float in
@@ -78,17 +78,20 @@ import Accelerate
         let floatClassPointer = UnsafeMutablePointer<Float>(&floatClass)
         let filteredClass = gather(values: floatClassPointer,
                                    valueSize: 1,
-                                   indices: filteredIndicesPointer,
+                                   indices: filteredIndices,
                                    indicesLength: UInt(filteredIndices.count))
-        var boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds)
+        
+        let boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds)
+        
         var filteredDeltas = gather(values: boundingBoxDeltasPointer,
-                                    valueSize: 4,
-                                    indices: UnsafeMutablePointer<Float>(&boundingBoxDeltaIndices),
-                                    indicesLength: UInt(filteredIndices.count))
+                                    valueSize: 1,
+                                    indices: boundingBoxDeltaIndices,
+                                    indicesLength: UInt(boundingBoxDeltaIndices.count))
+        
         var stdDev = self.boundingBoxRefinementStandardDeviation
         let stdDevPointer = UnsafeMutablePointer<Float>(&stdDev)
         elementWiseMultiply(matrixPointer: UnsafeMutablePointer<Float>(&filteredDeltas), vectorPointer: stdDevPointer, height:filteredClass.count, width: stdDev.count)
-        
+
         var resultBoxes = applyBoxDeltas(boxes: filteredRois, deltas: filteredDeltas)
         clipBoxes(boxesPointer: UnsafeMutablePointer<Float>(&resultBoxes), elementCount: filteredRois.count)
 
@@ -104,7 +107,7 @@ import Accelerate
                     return offset
             }
             
-            let nmsResults = nonMaxSupression(boxes: filteredRois,
+            let nmsResults = nonMaxSupression(boxes: resultBoxes,
                                               indices: indicesOfClass,
                                               iouThreshold: 0.3, max: 100)
             nmsBoxIds.append(contentsOf:nmsResults)
@@ -144,7 +147,7 @@ import Accelerate
         for (i,resultIndex) in resultIndices.enumerated() {
             
             for j in 0 ..< boxLength {
-                output[i*outputElementStride+j] = filteredRois[resultIndex*boxLength+j] as NSNumber
+                output[i*outputElementStride+j] = resultBoxes[resultIndex*boxLength+j] as NSNumber
             }
             output[i*outputElementStride+4] = filteredClass[resultIndex] as NSNumber
             output[i*outputElementStride+5] = filteredScores[resultIndex] as NSNumber
@@ -230,11 +233,12 @@ func deltasIndices(indices:[Float],
     let boxLength = 4
     let numberOfClasses = 81
     let indexStride = Float(numberOfClasses*boxLength)
-    var result = Array<Float>(repeating: 0.0, count:indices.count*boxLength)
+    var result = Array<Float>()
     
     //for each index, we will produce 4 result indices
     for (i,index) in indices.enumerated() {
-        let deltaIndex = index*indexStride+Float(classIds[i])
+        let classId = Float(classIds[i])
+        let deltaIndex = index*indexStride+classId
         for j in 0 ..< boxLength {
             result.append(deltaIndex+Float(numberOfClasses*j))
         }
@@ -245,17 +249,24 @@ func deltasIndices(indices:[Float],
 
 func gather(values:UnsafePointer<Float>,
             valueSize:UInt,
-            indices:UnsafePointer<Float>,
+            indices:[Float],
             indicesLength:UInt) -> [Float]
 {
     let resultCount =  Int(indicesLength*valueSize)
     var result = Array<Float>(repeating: 0.0, count:resultCount)
     let resultPointer = UnsafeMutablePointer<Float>(&result)
-    let valueSizeInt = Int(valueSize)
-    for i in 0 ..< valueSizeInt
-    {
-        vDSP_vindex(values.advanced(by: valueSizeInt*i), indices, 1, resultPointer, 1, indicesLength)
+    
+    var indicesOfValueSize = Array<Float>(repeating: 0.0, count:resultCount)
+    let indicesOfValueSizePointer = UnsafeMutablePointer<Float>(&indicesOfValueSize)
+    
+    for (i,index) in indices.enumerated() {
+        
+        for j in 0 ..< Int(valueSize) {
+            indicesOfValueSize[i*Int(valueSize)+j] = index*Float(valueSize)+Float(j)
+        }
+        
     }
+    vDSP_vindex(values, indicesOfValueSizePointer, 1, resultPointer, 1, indicesLength)
     return result
 }
 

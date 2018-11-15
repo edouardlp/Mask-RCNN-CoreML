@@ -42,11 +42,7 @@ struct Detection {
                 let height = y2-y1
                 
                 let detection = Detection(index:i, boundingBox: CGRect(x: x1, y: y1, width: width, height: height), classId: classId, score: score)
-                
-                if(width > 0 && height > 0) {
-                    detections.append(detection)
-                }
-                
+                detections.append(detection)
             }
             
         }

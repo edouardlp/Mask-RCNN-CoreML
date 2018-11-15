@@ -7,7 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		05800F05219C8E7B00832400 /* DebugLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800EFF219C8E7A00832400 /* DebugLayer.swift */; };
 		05800F06219C8E7B00832400 /* FixedTimeDistributedLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */; };
 		05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */; };
 		05800F08219C8E7B00832400 /* DetectionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F02219C8E7B00832400 /* DetectionLayer.swift */; };
@@ -26,7 +25,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		05800EFF219C8E7A00832400 /* DebugLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DebugLayer.swift; path = ../../Library/DebugLayer.swift; sourceTree = "<group>"; };
 		05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = FixedTimeDistributedLayer.swift; path = ../../Library/FixedTimeDistributedLayer.swift; sourceTree = "<group>"; };
 		05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PyramidROIAlignLayer.swift; path = ../../Library/PyramidROIAlignLayer.swift; sourceTree = "<group>"; };
 		05800F02219C8E7B00832400 /* DetectionLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetectionLayer.swift; path = ../../Library/DetectionLayer.swift; sourceTree = "<group>"; };
@@ -61,7 +59,6 @@
 			isa = PBXGroup;
 			children = (
 				05800F04219C8E7B00832400 /* BoxUtils.swift */,
-				05800EFF219C8E7A00832400 /* DebugLayer.swift */,
 				05800F02219C8E7B00832400 /* DetectionLayer.swift */,
 				05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */,
 				05800F03219C8E7B00832400 /* ProposalLayer.swift */,
@@ -200,7 +197,6 @@
 				05800F11219C8ECD00832400 /* MaskRCNN.mlmodel in Sources */,
 				05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */,
 				05B55095219C877A00974728 /* AppDelegate.swift in Sources */,
-				05800F05219C8E7B00832400 /* DebugLayer.swift in Sources */,
 				05800F06219C8E7B00832400 /* FixedTimeDistributedLayer.swift in Sources */,
 				05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */,
 				05800F0A219C8E7B00832400 /* BoxUtils.swift in Sources */,

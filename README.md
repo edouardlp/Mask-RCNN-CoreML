@@ -1,5 +1,6 @@
-# Mask-RCNN-CoreML
-Mask-RCNN for Core ML (WORK IN PROGRESS)
+# Mask-RCNN (CoreML)
+
+Mask-RCNN using Core ML, Metal 2 and Accelerate (WORK IN PROGRESS)
 
 ## Upcoming Features
 

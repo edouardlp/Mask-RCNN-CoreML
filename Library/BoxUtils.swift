@@ -148,21 +148,22 @@ func nonMaxSupression(boxes:[Float],
     for index in indices {
         if selected.count >= max { return selected }
         
-        var shouldSelect = true
         let anchorA = CGRect(anchorDatum: boxes[index*4..<index*4+4])
+        var shouldSelect = anchorA.width > 0 && anchorA.height > 0
         
-        //       Does the current box overlap one of the selected anchors more than the
-        //       given threshold amount? Then it's too similar, so don't keep it.
-        for j in selected {
-            
-            let anchorB = CGRect(anchorDatum: boxes[j*4..<j*4+4])
-            if IOU(anchorA, anchorB) > iouThreshold {
-                shouldSelect = false
-                break
+        if(shouldSelect) {
+            //       Does the current box overlap one of the selected anchors more than the
+            //       given threshold amount? Then it's too similar, so don't keep it.
+            for j in selected {
+                
+                let anchorB = CGRect(anchorDatum: boxes[j*4..<j*4+4])
+                if IOU(anchorA, anchorB) > iouThreshold {
+                    shouldSelect = false
+                    break
+                }
+                
             }
-            
         }
-        
         // This bounding box did not overlap too much with any previously selected
         // bounding box, so we'll keep it.
         if shouldSelect {

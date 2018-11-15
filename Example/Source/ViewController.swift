@@ -159,6 +159,8 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
         
         let detections = Detection.detectionsFromFeatureValue(featureValue: detectionsFeatureValue)
         
+        print(detections)
+        
         let resultImage = DetectionRenderer.renderDetections(detections: detections, onImage: image)
         
         DispatchQueue.main.async {
