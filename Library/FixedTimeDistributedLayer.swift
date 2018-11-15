@@ -17,8 +17,6 @@ import Accelerate
     
     required init(parameters: [String : Any]) throws {
         super.init()
-        //TODO: dynamically load model
-        //TODO: featureNames and outputshapes
     }
     
     func setWeightData(_ weights: [Data]) throws {
@@ -30,10 +28,15 @@ import Accelerate
     }
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
+        
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
-        return
+        
+        let detections = inputs[1]
+        let detectionsStride = Int(detections.strides[0])
+        
         let model = Mask().model
         let predictionOptions = MLPredictionOptions()
+        //Temporary, otherwise we seem to consume all system memory
         predictionOptions.usesCPUOnly = true
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, featureNames: self.featureNames)
         let batchOut = try model.predictions(from: batchIn, options: predictionOptions)
@@ -47,7 +50,23 @@ import Accelerate
                 let outputMultiArray = outputs[j]
                 let stride = Int(truncating: outputMultiArray.strides[2])
                 let resultArray = featureValue!.multiArrayValue!
-                outputMultiArray.dataPointer.advanced(by: stride*actualIndex*4).copyMemory(from: resultArray.dataPointer, byteCount: stride*4)
+                assert(resultArray.dataType == MLMultiArrayDataType.double)
+                let resultMemorySize = MemoryLayout<Double>.size
+                let resultStride = Int(truncating: resultArray.strides[0])
+
+                let classId = Int(truncating: detections[detectionsStride*i+4])
+                
+                var doubleBuffer = Array<Double>(repeating:0.0, count:stride)
+                let doubleBufferPointer = UnsafeMutableRawPointer(&doubleBuffer)
+                doubleBufferPointer.copyMemory(from: resultArray.dataPointer.advanced(by: resultStride*classId*resultMemorySize), byteCount: stride*resultMemorySize)
+                
+                var floatBuffer = doubleBuffer.map { (doubleValue) -> Float in
+                    return Float(doubleValue)
+                }
+                let floatBufferPointer = UnsafeMutableRawPointer(&floatBuffer)
+
+                let outputMemorySize = MemoryLayout<Float>.size
+                outputMultiArray.dataPointer.advanced(by: stride*actualIndex*outputMemorySize).copyMemory(from: floatBufferPointer, byteCount: stride*outputMemorySize)
                 
             }
         }

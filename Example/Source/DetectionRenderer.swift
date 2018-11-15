@@ -10,6 +10,19 @@ import UIKit
 
 class DetectionRenderer {
     
+    static func renderMask(mask:CGImage, inSize size:CGSize, color:UIColor) -> UIImage {
+        
+        UIGraphicsBeginImageContext(size)
+
+        UIGraphicsGetCurrentContext()?.clip(to: CGRect(origin: CGPoint.zero, size: size), mask: mask)
+        UIGraphicsGetCurrentContext()?.setFillColor(color.cgColor)
+        UIGraphicsGetCurrentContext()?.fill(CGRect(origin: CGPoint.zero, size: size))
+
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return UIImage(cgImage: image!.cgImage!, scale: 1.0, orientation: UIImage.Orientation.downMirrored)
+    }
+    
     static func renderDetection(detection:Detection, inSize size:CGSize, color:UIColor) -> UIImage  {
         
         UIGraphicsBeginImageContext(size)
@@ -22,13 +35,18 @@ class DetectionRenderer {
         path.lineWidth = 3.0
         path.stroke()
         
+        if let mask = detection.mask {
+            let maskImage = renderMask(mask: mask, inSize: scaledBoundingBox.size, color: color)
+            maskImage.draw(at: scaledBoundingBox.origin)
+        }
+        
         let image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         return image!
     }
     
     static func renderDetections(detections:[Detection], onImage image:UIImage) -> UIImage {
-        
+        UIGraphicsGetCurrentContext()?.saveGState()
         let colors = [UIColor.red, UIColor.blue, UIColor.green, UIColor.yellow]
         
         var i = -1
@@ -47,7 +65,8 @@ class DetectionRenderer {
         
         let outputImage = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
-        
+        UIGraphicsGetCurrentContext()?.restoreGState()
+
         return outputImage ?? image
     }
     

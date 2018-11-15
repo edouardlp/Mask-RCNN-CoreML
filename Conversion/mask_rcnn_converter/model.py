@@ -75,8 +75,7 @@ def export_models(mask_rcnn_model,
     def convert_pyramid(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "PyramidROIAlignLayer"
-        #TODO: proper poolsize
-        params.parameters["poolSize"].intValue = 7
+        params.parameters["poolSize"].intValue = layer.pool_shape[0]
         params.description = ""
         return params
 

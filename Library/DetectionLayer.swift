@@ -62,7 +62,7 @@ import Accelerate
         
         //Gather based on filtered indices
         
-        var filteredRois = gather(values: roisPointer,
+        let filteredRois = gather(values: roisPointer,
                                   valueSize: 4,
                                   indices: filteredIndices,
                                   indicesLength: UInt(filteredIndices.count))

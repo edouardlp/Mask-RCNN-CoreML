@@ -133,7 +133,8 @@ class FixedTimeDistributed(keras.layers.Layer):
 
     def call(self, inputs):
 
-        pyramid = inputs[0]
+        pyramid = inputs[0][0]
+        rois = inputs[1]
         slice_outputs = []
         #This will not get export to CoreML. We will vectorize this in CoreML
         for i in range(0,self.timesteps):
@@ -198,7 +199,7 @@ class FPNClassifierGraph():
     
 class FPNMaskGraph():
 
-    def __init__(self, rois, feature_maps,pool_size, num_classes, train_bn=False):
+    def __init__(self, rois, feature_maps, pool_size, num_classes, train_bn=False):
         self.rois = rois
         self.feature_maps = feature_maps
         self.pool_size = pool_size
@@ -244,7 +245,7 @@ class FPNMaskGraph():
         pyramid = PyramidROIAlign([pool_size, pool_size],
                             name="roi_align_mask")([rois] + feature_maps)
 
-        x = FixedTimeDistributed(fpn_mask_model, 100, ["mrcnn_mask_concat"],[(784,num_classes)])(pyramid)
+        x = FixedTimeDistributed(fpn_mask_model, 100, ["mrcnn_mask_concat"],[(784,num_classes)])([pyramid,rois])
         result= keras.layers.Reshape((28,28,100))(x)
 
         fpn_mask_model = self._build_inner_model()

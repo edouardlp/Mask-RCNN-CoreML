@@ -9,6 +9,7 @@
 import Foundation
 import CoreGraphics
 import CoreML
+import CoreImage
 
 struct Detection {
     
@@ -16,8 +17,10 @@ struct Detection {
     let boundingBox:CGRect
     let classId:Int
     let score:Double
+    let mask:CGImage?
     
-    static func detectionsFromFeatureValue(featureValue:MLFeatureValue) -> [Detection] {
+    static func detectionsFromFeatureValue(featureValue:MLFeatureValue,
+                                           maskFeatureValue:MLFeatureValue?) -> [Detection] {
         
         guard let rawDetections = featureValue.multiArrayValue else {
             return []
@@ -41,13 +44,57 @@ struct Detection {
                 let width = x2-x1
                 let height = y2-y1
                 
-                let detection = Detection(index:i, boundingBox: CGRect(x: x1, y: y1, width: width, height: height), classId: classId, score: score)
+                let mask:CGImage? = {
+                    if let maskFeatureValue = maskFeatureValue {
+                        return maskFromFeatureValue(maskFeatureValue: maskFeatureValue, atIndex: i)
+                    }
+                    return nil
+                }()
+                
+                let detection = Detection(index:i, boundingBox: CGRect(x: x1, y: y1, width: width, height: height), classId: classId, score: score, mask:mask)
                 detections.append(detection)
             }
             
         }
         
         return detections
+    }
+    
+    static func maskFromFeatureValue(maskFeatureValue:MLFeatureValue, atIndex index:Int) -> CGImage? {
+        
+        guard let rawMasks = maskFeatureValue.multiArrayValue else {
+            return nil
+        }
+        
+        let maskCount = Int(truncating: rawMasks.shape[0])
+        
+        guard maskCount > index else {
+            return nil
+        }
+        
+        let maskStride = Int(truncating: rawMasks.strides[0])
+        assert(rawMasks.dataType == .double)
+        var maskData = Array<Double>(repeating: 0.0, count: maskStride)
+        let maskDataPointer = UnsafeMutableRawPointer(&maskData)
+        let elementSize = MemoryLayout<Double>.size
+        maskDataPointer.copyMemory(from: rawMasks.dataPointer.advanced(by: maskStride*elementSize*index), byteCount: maskStride*elementSize)
+
+        var intMaskData = maskData.map { (doubleValue) -> UInt8 in
+            return UInt8(255-(doubleValue*255))
+        }
+        
+        let intMaskDataPointer = UnsafeMutablePointer<UInt8>(&intMaskData)
+        let data = CFDataCreate(nil, intMaskDataPointer, maskData.count)!
+        
+        let image = CGImage(maskWidth: 28,
+                            height: 28,
+                            bitsPerComponent: 8,
+                            bitsPerPixel: 8,
+                            bytesPerRow: 28,
+                            provider: CGDataProvider(data: data)!,
+                            decode: nil,
+                            shouldInterpolate: false)
+        return image
     }
     
 }

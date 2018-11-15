@@ -38,7 +38,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                 [weak self] request, error in
                 self?.processMaskRCNNRequest(for: request, error: error)
             })
-            request.imageCropAndScaleOption = .centerCrop
+            request.imageCropAndScaleOption = .scaleFit
             return request
         } catch {
             fatalError("Failed to load Vision ML model: \(error)")
@@ -146,10 +146,10 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     
     private func processMaskRCNNRequest(for request: VNRequest, error: Error?) {
         
-        guard let image = self.selectedImage,
-              let results = request.results as? [VNCoreMLFeatureValueObservation],
-              let detectionsFeatureValue = results.first?.featureValue
-            else {
+        guard let selectedImage = self.selectedImage,
+            let results = request.results as? [VNCoreMLFeatureValueObservation],
+            let detectionsFeatureValue = results.first?.featureValue,
+            let maskFeatureValue = results.last?.featureValue else {
             DispatchQueue.main.async {
                 print("Failed to perform Mask-RCNN.\n\(error?.localizedDescription ?? "")")
                 self.handleFailure()
@@ -157,11 +157,11 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
             return
         }
         
-        let detections = Detection.detectionsFromFeatureValue(featureValue: detectionsFeatureValue)
+        let detections = Detection.detectionsFromFeatureValue(featureValue: detectionsFeatureValue, maskFeatureValue:maskFeatureValue)
         
         print(detections)
         
-        let resultImage = DetectionRenderer.renderDetections(detections: detections, onImage: image)
+        let resultImage = DetectionRenderer.renderDetections(detections: detections, onImage: selectedImage)
         
         DispatchQueue.main.async {
             self.handleSuccess(image: resultImage)
@@ -170,6 +170,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     
     private func handleSuccess(image:UIImage) {
         self.state = .displayingResult
+        self.selectedImage = nil
         self.imageView.image = image
     }
     
