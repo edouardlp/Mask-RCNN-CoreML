@@ -80,7 +80,7 @@ struct Detection {
         maskDataPointer.copyMemory(from: rawMasks.dataPointer.advanced(by: maskStride*elementSize*index), byteCount: maskStride*elementSize)
 
         var intMaskData = maskData.map { (doubleValue) -> UInt8 in
-            return UInt8(255-(doubleValue*255))
+            return UInt8(255-(doubleValue/2*255))
         }
         
         let intMaskDataPointer = UnsafeMutablePointer<UInt8>(&intMaskData)

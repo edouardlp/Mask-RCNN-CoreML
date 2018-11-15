@@ -53,78 +53,13 @@ func applyBoxDeltas(boxes:[Float],
     return results
 }
 
-func applyBoxDeltasAccelerate(boxesPointer:UnsafeMutablePointer<Float>,
-                    deltasPointer:UnsafeMutablePointer<Float>,
-                    elementCount:Int) {
-    let boxSize = 4
-    var halfScalar:Float = 0.5
-    let halfScalarPointer = UnsafeMutablePointer<Float>(&halfScalar)
-    
-    var height = Array<Float>(repeating: 0, count: elementCount)
-    let heightPointer = UnsafeMutablePointer<Float>(&height)
-    var width = Array<Float>(repeating: 0, count: elementCount)
-    let widthPointer = UnsafeMutablePointer<Float>(&width)
-    var centerY = Array<Float>(repeating: 0, count: elementCount)
-    let centerYPointer = UnsafeMutablePointer<Float>(&centerY)
-    var centerX = Array<Float>(repeating: 0, count: elementCount)
-    let centerXPointer = UnsafeMutablePointer<Float>(&centerX)
-    
-    //height = boxes[2] - boxes[0]
-    vDSP_vsub(boxesPointer, boxSize, boxesPointer.advanced(by: 2), boxSize, heightPointer, 1, vDSP_Length(elementCount))
-    //width = boxes[3] - boxes[1]
-    vDSP_vsub(boxesPointer.advanced(by: 1), boxSize, boxesPointer.advanced(by: 3), boxSize, widthPointer, 1, vDSP_Length(elementCount))
-    //center_y = boxes[0] + 0.5 * height
-    vDSP_vsmul(heightPointer, 1, halfScalarPointer, centerYPointer, 1, vDSP_Length(elementCount))
-    vDSP_vadd(boxesPointer, boxSize, centerYPointer, 1, centerYPointer, 1, vDSP_Length(elementCount))
-    //center_x = boxes[1] + 0.5 * width
-    vDSP_vsmul(widthPointer, 1, halfScalarPointer, centerXPointer, 1, vDSP_Length(elementCount))
-    vDSP_vadd(boxesPointer.advanced(by: 1), boxSize, centerXPointer, 1, centerXPointer, 1, vDSP_Length(elementCount))
-    
-    //Apply the deltas
-    
-    //center_y += deltas[0] * height
-    vDSP_vma(deltasPointer, boxSize, heightPointer, 1, centerYPointer, 1, centerYPointer, 1, vDSP_Length(elementCount))
-    //center_x += deltas[1] * width
-    vDSP_vma(deltasPointer.advanced(by: 1), boxSize, widthPointer, 1, centerXPointer, 1, centerXPointer, 1, vDSP_Length(elementCount))
-    
-    var deltaHeight = Array<Float>(repeating: 0, count: elementCount)
-    let deltaHeightPointer = UnsafeMutablePointer<Float>(&deltaHeight)
-    cblas_scopy(Int32(elementCount), deltasPointer.advanced(by: 2), Int32(boxSize), deltaHeightPointer, 1)
-    
-    var deltaWidth = Array<Float>(repeating: 0, count: elementCount)
-    let deltaWidthPointer = UnsafeMutablePointer<Float>(&deltaWidth)
-    cblas_scopy(Int32(elementCount), deltasPointer.advanced(by: 3), Int32(boxSize), deltaWidthPointer, 1)
-    
-    var exponentiationCount = Int32(elementCount)
-    let exponentiationCountPointer = UnsafeMutablePointer<Int32>(&exponentiationCount)
-    
-    var temporaryHeight = Array<Float>(repeating: 0, count: elementCount)
-    let temporaryHeightPointer = UnsafeMutablePointer<Float>(&temporaryHeight)
-    var temporaryWidth = Array<Float>(repeating: 0, count: elementCount)
-    let temporaryWidthPointer = UnsafeMutablePointer<Float>(&temporaryWidth)
-    
-    //height *= exp(deltas[2])
-    vvexpf(temporaryHeightPointer, deltaHeight, exponentiationCountPointer)
-    vDSP_vsmul(heightPointer, 1, temporaryHeightPointer, heightPointer, 1, vDSP_Length(elementCount))
-    
-    //width *= exp(deltas[3])
-    vvexpf(temporaryWidthPointer, deltaWidth, exponentiationCountPointer)
-    vDSP_vsmul(widthPointer, 1, temporaryWidthPointer, widthPointer, 1, vDSP_Length(elementCount))
-    
-    //Convert back to normalized coordinates y1, x1, y2, x2 and store results in boxes pointer
-    
-    //boxes[0](y1) = center_y - 0.5 * height
-    vDSP_vsmul(heightPointer, 1, halfScalarPointer, temporaryHeightPointer, 1, vDSP_Length(elementCount))
-    vDSP_vsub(temporaryHeightPointer, 1, centerYPointer, 1, boxesPointer, boxSize, vDSP_Length(elementCount))
-    //boxes[1](x1) = center_x - 0.5 * width
-    vDSP_vsmul(widthPointer, 1, halfScalarPointer, temporaryWidthPointer, 1, vDSP_Length(elementCount))
-    vDSP_vsub(temporaryWidthPointer, 1, centerXPointer, 1, boxesPointer.advanced(by: 1), boxSize, vDSP_Length(elementCount))
-    
-    //boxes[2](y2) = boxes[0](y1) + height
-    vDSP_vadd(boxesPointer, boxSize, heightPointer, boxSize, boxesPointer.advanced(by: 2), 1, vDSP_Length(elementCount))
-    
-    //boxes[3](x2) = boxes[1](x1) + width
-    vDSP_vadd(boxesPointer.advanced(by: 1), boxSize, widthPointer, boxSize, boxesPointer.advanced(by: 3), 1, vDSP_Length(elementCount))
+func elementWiseMultiply(matrixPointer:UnsafeMutablePointer<Float>,
+                         vectorPointer:UnsafeMutablePointer<Float>,
+                         height:Int,
+                         width:Int) {
+    for i in 0 ..< width {
+        vDSP_vsmul(matrixPointer.advanced(by: i), width, vectorPointer.advanced(by: i), matrixPointer.advanced(by: i), width, vDSP_Length(height))
+    }
 }
 
 func clipBoxes(boxesPointer:UnsafeMutablePointer<Float>,
@@ -138,6 +73,8 @@ func clipBoxes(boxesPointer:UnsafeMutablePointer<Float>,
     //Clip between 0 and 1
     vDSP_vclip(boxesPointer, 1, minimumPointer, maximumPointer, boxesPointer, 1, vDSP_Length(elementCount))
 }
+
+//nonMaxSupression Adapted from https://github.com/hollance/CoreMLHelpers
 
 func nonMaxSupression(boxes:[Float],
                       indices:[Int],
@@ -173,8 +110,6 @@ func nonMaxSupression(boxes:[Float],
     
     return selected
 }
-
-//TODO: Vectorize this
 
 extension CGRect
 {

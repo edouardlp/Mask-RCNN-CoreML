@@ -10,16 +10,58 @@ import Foundation
 import CoreML
 import Accelerate
 
+/**
+ 
+ ProposalLayer is a Custom ML Layer that proposes regions of interests.
+ 
+ ProposalLayer proposes regions of interest based on the probability of objects
+ being detected in each region. Regions that overlap more than a given
+ threshold are removed through a process called Non-Max Supression (NMS).
+ 
+ Regions correspond to predefined "anchors" that are not inputs to the layer.
+ Anchors are generated based on the image shape using a heuristic that maximizes
+ the likelihood of bounding objects in the image. The process of generating anchors
+ can be though of as a hyperparameter.
+ 
+ Anchors are adjusted using deltas provided as input to refine how they enclose the
+ detected objects.
+
+ The layer takes two inputs :
+ 
+ - Probabilities of a region containing an object. Shape : (#regions, 2).
+ - Anchor deltas to refine the anchors shape. Shape : (#regions,4)
+ 
+ The probabilities input's last dimension corresponds to the mutually exclusive
+ probabilities of the region being background (index 0) or an object (index 1).
+ 
+ The anchor deltas are layed out as follows : (dy,dx,log(dh),log(dw)).
+ 
+ The layer takes three parameters :
+ 
+ - boundingBoxRefinementStandardDeviation : Anchor deltas refinement standard deviation
+ - preNonMaxSupressionLimit : Maximum # of regions to evaluate for non max supression
+ - proposalLimit : Maximum # of regions to output
+ 
+ The layer has one ouput :
+ 
+ - Regions of interest. Shape : (#regionsOut,4),
+ 
+ */
 @objc(ProposalLayer) class ProposalLayer: NSObject, MLCustomLayer {
     
-    let preNonMaxLimit:UInt = 6000
     var anchorData:Data!
-    // Bounding box refinement standard deviation
+    
+    //Anchor deltas refinement standard deviation
     let boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
+    //Maximum # of regions to evaluate for non max supression
+    var preNonMaxSupressionLimit = 6000
+    //Maximum # of regions to output
+    var proposalLimit = 1000
     
     required init(parameters: [String : Any]) throws {
         super.init()
         self.anchorData = try Data(contentsOf: Bundle.main.url(forResource: "anchors", withExtension: "bin")!)
+        //TODO: load stdev and limits
     }
     
     func setWeightData(_ weights: [Data]) throws {
@@ -28,23 +70,24 @@ import Accelerate
     
     func outputShapes(forInputShapes inputShapes: [[NSNumber]]) throws -> [[NSNumber]] {
         var outputshape = inputShapes[1]
-        outputshape[0] = NSNumber(integerLiteral: 1000)
-        return [outputshape]//1000,1,4,1,1
+        outputshape[0] = NSNumber(integerLiteral: self.proposalLimit)
+        return [outputshape]
     }
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
+        
         let log = OSLog(subsystem: "Proposal", category: OSLog.Category.pointsOfInterest)
         os_signpost(.begin, log: log, name: "Proposal-Eval")
-
-        let preNonMaxLimit = self.preNonMaxLimit
-        let maxProposals = 1000
         
-        let rpnClass = inputs[0]
+        let classProbabilities = inputs[0]
         let anchorDeltas = inputs[1]
+
+        let preNonMaxLimit = self.preNonMaxSupressionLimit
+        let maxProposals = self.proposalLimit
         
-        let foregroundProbability = extractForegroundProbabilities(rpnClassMultiArray: rpnClass)
+        let foregroundProbability = extractForegroundProbabilities(rpnClassMultiArray: classProbabilities)
         var (sortedProbabilities,sortedProbabilitiesIndices) = sortProbabilities(probabilities: foregroundProbability, keepTop: preNonMaxLimit)
         
         let numberOfElementsToProcess = vDSP_Length(sortedProbabilities.count)
@@ -70,7 +113,7 @@ import Accelerate
             vDSP_vindex(data, boxIndicesPointer, 1, sortedAnchorPointer, 1, vDSP_Length(boxCount))
         }
         
-        //For each element of deltas,multiply by stdev
+        //For each element of deltas, multiply by stdev
         
         var stdDev = self.boundingBoxRefinementStandardDeviation
         let stdDevPointer = UnsafeMutablePointer<Float>(&stdDev)
@@ -113,7 +156,7 @@ func extractForegroundProbabilities(rpnClassMultiArray:MLMultiArray) -> [Float] 
     return foregroundProbability
 }
 
-func sortProbabilities(probabilities:[Float], keepTop:UInt) -> ([Float],[Float]) {
+func sortProbabilities(probabilities:[Float], keepTop:Int) -> ([Float],[Float]) {
     
     var probabilities = probabilities
     let probabilitiesPointer = UnsafeMutablePointer<Float>(&probabilities)
@@ -124,7 +167,7 @@ func sortProbabilities(probabilities:[Float], keepTop:UInt) -> ([Float],[Float])
     vDSP_vsorti(probabilitiesPointer, indicesPointer, nil, totalElements, -1)
     
     //We clip to the limit
-    let numberOfElementsToProcess = min(totalElements, keepTop)
+    let numberOfElementsToProcess = min(totalElements, vDSP_Length(keepTop))
     
     var floatIndices:[Float] = Array<Float>(indices[0..<Int(numberOfElementsToProcess)].map({ (integerValue) -> Float in
         return Float(integerValue)
@@ -162,13 +205,3 @@ func computeIndices(fromIndicesPointer:UnsafeMutablePointer<Float>,
     }
 }
 
-
-
-func elementWiseMultiply(matrixPointer:UnsafeMutablePointer<Float>,
-                         vectorPointer:UnsafeMutablePointer<Float>,
-                         height:Int,
-                         width:Int) {
-    for i in 0 ..< width {
-        vDSP_vsmul(matrixPointer.advanced(by: i), width, vectorPointer.advanced(by: i), matrixPointer.advanced(by: i), width, vDSP_Length(height))
-    }
-}
