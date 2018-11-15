@@ -1,4 +1,4 @@
-# Mask-RCNN (CoreML)
+# Mask-RCNN for CoreML
 
 Mask-RCNN using Core ML, Metal 2 and Accelerate.
 
@@ -30,14 +30,28 @@ This model will only be useful if instance segmentation is valuable for your use
 - iOS 12
 - (More requirements details coming soon)
 
+## Installation
+
+1. Download the pre-trained model files [here](https://github.com/edouardlp/Mask-RCNN-CoreML/archive/0.1.zip). (instructions for conversion coming soon)
+2. Drag the three files into your Xcode project (anchors.bin, MaskRCNN.mlmodel, Mask.mlmodel)
+3. Import all of the Swift files in the Library/ directory
+
 ## Usage
 
 
 
+## iOS Example Project Usage
+
+1. Download the pre-trained model files [here](https://github.com/edouardlp/Mask-RCNN-CoreML/archive/0.1.zip).
+2. Place the three files in the Data/ directory (anchors.bin, MaskRCNN.mlmodel, Mask.mlmodel)
+3. Build and run
+
 ## Roadmap
 
 - Inference for all weights generated with https://github.com/matterport/Mask_RCNN. (Support for all configurations)
-- Mobile-optimized backbone
+- COCO dataset evaluation
+- Mobile-optimized backbone and other performance optimizations
+- Easy training support
 - Support for pose estimation
 
 ## Author
@@ -51,6 +65,7 @@ This model will only be useful if instance segmentation is valuable for your use
 - [Inspiration](http://machinethink.net/blog//)
 
 ## References
+
 - [Vision Framework](https://developer.apple.com/documentation/vision)
 - [CoreML Framework](https://developer.apple.com/documentation/coreml)
 - [coremltools](https://pypi.python.org/pypi/coremltools)
