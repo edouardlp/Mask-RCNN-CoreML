@@ -32,7 +32,7 @@ This model will only be useful if instance segmentation is valuable for your use
 
 ## Installation
 
-1. Download the pre-trained model files [here](https://github.com/edouardlp/Mask-RCNN-CoreML/archive/0.1.zip). (instructions for conversion coming soon)
+1. Download the pre-trained model files from the [releases page](https://github.com/edouardlp/Mask-RCNN-CoreML/releases). (instructions for conversion coming soon)
 2. Drag the three files into your Xcode project (anchors.bin, MaskRCNN.mlmodel, Mask.mlmodel)
 3. Import all of the Swift files in the Library/ directory
 
@@ -42,7 +42,7 @@ This model will only be useful if instance segmentation is valuable for your use
 
 ## iOS Example Project Usage
 
-1. Download the pre-trained model files [here](https://github.com/edouardlp/Mask-RCNN-CoreML/archive/0.1.zip).
+1. Download the pre-trained model files [releases page](https://github.com/edouardlp/Mask-RCNN-CoreML/releases).
 2. Place the three files in the Data/ directory (anchors.bin, MaskRCNN.mlmodel, Mask.mlmodel)
 3. Build and run
 
