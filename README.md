@@ -4,7 +4,7 @@ Mask-RCNN using Core ML, Metal 2 and Accelerate (WORK IN PROGRESS).
 
 This project is a port of https://github.com/matterport/Mask_RCNN for Core ML.
 
-![Example](Example/Screenhots/Screenshot.png)
+![Example](Example/Screenshots/Screenshot.png)
 
 ## Upcoming Features
 
