@@ -45,19 +45,34 @@ class DetectionRenderer {
         return image!
     }
     
-    static func renderDetections(detections:[Detection], onImage image:UIImage) -> UIImage {
+    static func renderDetections(detections:[Detection],
+                                 onImage image:UIImage,
+                                 size:CGSize) -> UIImage {
+        
         UIGraphicsGetCurrentContext()?.saveGState()
         let colors = [UIColor.red, UIColor.blue, UIColor.green, UIColor.yellow]
         
         var i = -1
         let detectionImages = detections.map { (detection) -> UIImage in
             i += 1
-            return renderDetection(detection: detection, inSize: image.size, color: colors[i%4])
+            return renderDetection(detection: detection, inSize: size, color: colors[i%4])
         }
         
-        UIGraphicsBeginImageContext(image.size)
+        UIGraphicsBeginImageContext(size)
         
-        image.draw(at: CGPoint(x: 0, y: 0))
+        let horizontalScaleFactor = size.width/image.size.width
+        let verticalScaleFactor = size.height/image.size.height
+        
+        let fitsHorizontally = image.size.height*horizontalScaleFactor <= size.height
+        
+        let scaleFactor = fitsHorizontally ? horizontalScaleFactor : verticalScaleFactor
+        
+        let imageSize = CGSize(width: image.size.width*scaleFactor, height: image.size.height*scaleFactor)
+        
+        let horizontalPadding = size.width-imageSize.width
+        let verticalPadding = size.height-imageSize.height
+        
+        image.draw(in: CGRect(origin: CGPoint(x: horizontalPadding/2, y: verticalPadding/2), size: imageSize))
         
         for detectionImage in detectionImages {
             detectionImage.draw(at: CGPoint(x: 0, y: 0))

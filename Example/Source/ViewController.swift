@@ -161,7 +161,9 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
         
         print(detections)
         
-        let resultImage = DetectionRenderer.renderDetections(detections: detections, onImage: selectedImage)
+        let resultImage = DetectionRenderer.renderDetections(detections: detections,
+                                                             onImage: selectedImage,
+                                                             size:CGSize(width:1024,height:1024))
         
         DispatchQueue.main.async {
             self.handleSuccess(image: resultImage)
