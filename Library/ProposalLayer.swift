@@ -39,6 +39,7 @@ import Accelerate
         os_signpost(.begin, log: log, name: "Proposal-Eval")
 
         let preNonMaxLimit = self.preNonMaxLimit
+        let maxProposals = 1000
         
         let rpnClass = inputs[0]
         let anchorDeltas = inputs[1]
@@ -77,17 +78,24 @@ import Accelerate
         var resultBoxes = applyBoxDeltas(boxes: sortedAnchors, deltas: sortedDeltas)
         let resultBoxesPointer = UnsafeMutablePointer<Float>(&resultBoxes)
         clipBoxes(boxesPointer: resultBoxesPointer, elementCount: Int(numberOfElementsToProcess))
+        
         let resultIndices = nonMaxSupression(boxes: resultBoxes,
                                              indices: Array(0 ..< resultBoxes.count),
                                              iouThreshold: 0.7,
-                                             max: 1000)
+                                             max: maxProposals)
         
+        let output = outputs[0]
+        let outputElementStride = Int(truncating: output.strides[0])
         for (i,resultIndex) in resultIndices.enumerated() {
             for j in 0 ..< 4 {
-                outputs[0][i*4+j] = resultBoxes[resultIndex*4+j] as NSNumber
+                output[i*outputElementStride+j] = resultBoxes[resultIndex*4+j] as NSNumber
             }
         }
-
+        
+        let proposalCount = resultIndices.count
+        let paddingCount = max(0,maxProposals-proposalCount)*outputElementStride
+        output.padTailWithZeros(startIndex: proposalCount*outputElementStride, count: paddingCount)
+        
         os_signpost(.end, log: log, name: "Proposal-Eval")
     }
     

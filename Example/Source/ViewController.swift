@@ -117,31 +117,41 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     //MARK: Private Methods
     
     private func presentPicker(sourceType:UIImagePickerController.SourceType) {
+        
         let picker = UIImagePickerController()
         picker.delegate = self
         picker.sourceType = sourceType
         self.present(picker, animated: true, completion: nil)
+        
     }
     
     private func handleChangedState(state:State) {
+        
         switch(state) {
         case .initial:
+            
             self.imageView.image = nil
             self.activityIndicator.stopAnimating()
             self.label.text = "Choose a Photo"
             self.label.isHidden = false
             self.selectPhotoItem.isEnabled = true
+            
         case .calculating:
+            
             self.imageView.image = nil
             self.activityIndicator.startAnimating()
             self.label.text = "Calculating..."
             self.label.isHidden = false
             self.selectPhotoItem.isEnabled = false
+            
         case .displayingResult:
+            
             self.activityIndicator.stopAnimating()
             self.label.isHidden = true
             self.selectPhotoItem.isEnabled = true
+            
         }
+        
     }
     
     private func processMaskRCNNRequest(for request: VNRequest, error: Error?) {

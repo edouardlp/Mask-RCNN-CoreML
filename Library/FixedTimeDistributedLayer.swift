@@ -32,7 +32,7 @@ import Accelerate
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
         let detections = inputs[1]
-        let detectionsStride = Int(detections.strides[0])
+        let detectionsStride = Int(truncating: detections.strides[0])
         
         let model = Mask().model
         let predictionOptions = MLPredictionOptions()
@@ -41,6 +41,13 @@ import Accelerate
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, featureNames: self.featureNames)
         let batchOut = try model.predictions(from: batchIn, options: predictionOptions)
         let resultFeatureNames = ["mask"]
+        
+        let output = outputs[0]
+        let outputStride = Int(truncating: output.strides[2])
+        //let outputComponentsSize = MemoryLayout<Float>.size
+        
+        let maxMasks = 100
+        
         for i in 0..<batchOut.count {
             let featureProvider = batchOut.features(at: i)
             let actualIndex = batchIn.indexMapping[i]!
@@ -70,6 +77,10 @@ import Accelerate
                 
             }
         }
+        
+        let resultCount = batchOut.count
+        let paddingCount = max(0,maxMasks-resultCount)*outputStride
+        output.padTailWithZeros(startIndex: resultCount*outputStride, count: paddingCount)
     }
     
 }

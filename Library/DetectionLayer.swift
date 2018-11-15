@@ -43,6 +43,7 @@ import Accelerate
         let boundingBoxDeltasPointer = UnsafeMutablePointer<Float>(OpaquePointer(boundingBoxDeltas.dataPointer))
 
         let N = UInt(truncating:rois.shape[0])//1000
+        let maxDetections = 100
         let numberOfClasses = UInt(truncating:probabilities.shape[2])//81
 
         var (scores,classIds) = maximumValuesWithIndices2d(values: probabilitiesPointer, rows: N, columns: numberOfClasses)
@@ -143,7 +144,12 @@ import Accelerate
         let output = outputs[0]
         let outputElementStride = Int(truncating: output.strides[0])
         
+        if(output[0] != 0) {
+            print(output[0])
+        }
+        
         //Gather indices so that output is [N, (y1, x1, y2, x2, class_id, score)]
+        
         for (i,resultIndex) in resultIndices.enumerated() {
             
             for j in 0 ..< boxLength {
@@ -153,6 +159,13 @@ import Accelerate
             output[i*outputElementStride+5] = filteredScores[resultIndex] as NSNumber
         }
         
+        //Zero-pad the rest
+        
+        let detectionsCount = resultIndices.count
+        let paddingCount = max(0,maxDetections-detectionsCount)*outputElementStride
+        
+        output.padTailWithZeros(startIndex: detectionsCount*outputElementStride, count: paddingCount)
+        
         os_signpost(.end, log: log, name: "Detection-Eval")
     }
 
@@ -160,8 +173,7 @@ import Accelerate
 
 func maximumValuesWithIndices2d(values:UnsafePointer<Float>,
                                 rows:UInt,
-                                columns:UInt) -> ([Float],[UInt])
-{
+                                columns:UInt) -> ([Float],[UInt]) {
     var resultValues = Array<Float>(repeating: 0.0, count: Int(rows))
     var resultValuesPointer = UnsafeMutablePointer<Float>(&resultValues)
     var resultIndices = Array<UInt>(repeating: 0, count: Int(rows))
@@ -189,8 +201,7 @@ func maximumValuesWithIndices2d(values:UnsafePointer<Float>,
 
 func indicesOfRoisWithHighScores(scores:UnsafeMutablePointer<Float>,
                                  threshold:Float,
-                                 count:UInt) -> [Float]
-{
+                                 count:UInt) -> [Float] {
     let temporaryBuffer = UnsafeMutablePointer<Float>.allocate(capacity: Int(count))
 
     //Count how many scores below threshold
@@ -250,8 +261,7 @@ func deltasIndices(indices:[Float],
 func gather(values:UnsafePointer<Float>,
             valueSize:UInt,
             indices:[Float],
-            indicesLength:UInt) -> [Float]
-{
+            indicesLength:UInt) -> [Float] {
     let resultCount =  Int(indicesLength*valueSize)
     var result = Array<Float>(repeating: 0.0, count:resultCount)
     let resultPointer = UnsafeMutablePointer<Float>(&result)

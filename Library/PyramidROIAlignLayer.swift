@@ -71,7 +71,6 @@ import os.signpost
             let inputWidth = Int(truncating: featureMap.shape[4])
             let inputHeight = Int(truncating: featureMap.shape[3])
             let image = MPSImage(device: device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: inputWidth, height: inputHeight, featureChannels: channels, numberOfImages:1, usage:MTLTextureUsage.shaderRead))
-            //If we want to support quantization, we need to convert to 32 bit floats here
             image.writeBytes(featureMap.dataPointer, dataLayout: MPSDataLayout.featureChannelsxHeightxWidth, imageIndex: 0)
             return image
         }
@@ -102,12 +101,12 @@ import os.signpost
                 
                 let offset = output.offset * resultStride
                 let pointer = outputPointer.advanced(by:offset)
-                //If we want to support quantization, we need to write to a buffer here, than convert from floats to ints
                 output.outputImage.readBytes(pointer,
                                              dataLayout: MPSDataLayout.featureChannelsxHeightxWidth,
                                              bytesPerRow: outputWidth*floatSize,
                                              region: metalRegion, featureChannelInfo: MPSImageReadWriteParams(featureChannelOffset: 0, numberOfFeatureChannelsToReadWrite: channels), imageIndex: 0)
             }
+            //TODO: add zeros where a batch has invalid regions
 
         }
         os_signpost(.end, log: log, name: "Pyramid-Eval")
@@ -171,9 +170,9 @@ func roisToMPSRegionBatches(rois:MLMultiArray) -> [MPSRegionBatchInput] {
     let totalCount = Int(truncating: rois.shape[0])
     var currentBatch:MPSRegionBatchInput?
     var result = [MPSRegionBatchInput]()
-    let maxBatchSize = 32
+    let maxBatchSize = 32//TODO:calculate bazed on metal buffer size
     let stride = Int(truncating: rois.strides[0])
-    let ratio = 0.21785
+    let ratio = 0.21785//TODO: calculate based on image shape
     
     var mapLevels = [Int]()
     
@@ -227,25 +226,4 @@ func roisToMPSRegionBatches(rois:MLMultiArray) -> [MPSRegionBatchInput] {
     }
     
     return result
-}
-
-func zeroCrossings(values:[Float]) -> [Int] {
-    
-    var atZero = false
-    var results = [Int]()
-    
-    for (i,value) in values.enumerated() {
-        if(atZero) {
-            if(value != 0) {
-                atZero = false
-                results.append(i)
-            }
-        } else {
-            if(value == 0) {
-                atZero = true
-                results.append(i)
-            }
-        }
-    }
-    return results
 }
