@@ -94,7 +94,7 @@ import Accelerate
         elementWiseMultiply(matrixPointer: UnsafeMutablePointer<Float>(&filteredDeltas), vectorPointer: stdDevPointer, height:filteredClass.count, width: stdDev.count)
 
         var resultBoxes = applyBoxDeltas(boxes: filteredRois, deltas: filteredDeltas)
-        clipBoxes(boxesPointer: UnsafeMutablePointer<Float>(&resultBoxes), elementCount: filteredRois.count)
+        resultBoxes.boxReference().clip()
 
         var nmsBoxIds = [Int]()
         let classIdSet = Set(filteredClass)
@@ -267,7 +267,6 @@ func gather(values:UnsafePointer<Float>,
     let resultPointer = UnsafeMutablePointer<Float>(&result)
     
     var indicesOfValueSize = Array<Float>(repeating: 0.0, count:resultCount)
-    let indicesOfValueSizePointer = UnsafeMutablePointer<Float>(&indicesOfValueSize)
     
     for (i,index) in indices.enumerated() {
         
@@ -276,6 +275,8 @@ func gather(values:UnsafePointer<Float>,
         }
         
     }
+    
+    let indicesOfValueSizePointer = UnsafeMutablePointer<Float>(&indicesOfValueSize)
     vDSP_vindex(values, indicesOfValueSizePointer, 1, resultPointer, 1, indicesLength)
     return result
 }

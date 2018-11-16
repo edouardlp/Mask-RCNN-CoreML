@@ -28,7 +28,7 @@ import Accelerate
 
  The layer takes two inputs :
  
- - Probabilities of a region containing an object. Shape : (#regions, 2).
+ - Probabilities of each region containing an object. Shape : (#regions, 2).
  - Anchor deltas to refine the anchors shape. Shape : (#regions,4)
  
  The probabilities input's last dimension corresponds to the mutually exclusive
@@ -52,7 +52,7 @@ import Accelerate
     var anchorData:Data!
     
     //Anchor deltas refinement standard deviation
-    let boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
+    var boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
     //Maximum # of regions to evaluate for non max supression
     var preNonMaxSupressionLimit = 6000
     //Maximum # of regions to output
@@ -60,8 +60,18 @@ import Accelerate
     
     required init(parameters: [String : Any]) throws {
         super.init()
+        //TODO: generate the anchors on demand based on image shape
         self.anchorData = try Data(contentsOf: Bundle.main.url(forResource: "anchors", withExtension: "bin")!)
-        //TODO: load stdev and limits
+        
+        if let boundingBoxRefinementStandardDeviation = parameters["bboxStdDev"] as? [Float]  {
+            self.boundingBoxRefinementStandardDeviation = boundingBoxRefinementStandardDeviation
+        }
+        if let preNonMaxSupressionLimit = parameters["preNonMaxSupressionLimit"] as? Int {
+            self.preNonMaxSupressionLimit = preNonMaxSupressionLimit
+        }
+        if let proposalLimit = parameters["proposalLimit"] as? Int {
+            self.proposalLimit = proposalLimit
+        }
     }
     
     func setWeightData(_ weights: [Data]) throws {
@@ -77,131 +87,79 @@ import Accelerate
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
-        
-        let log = OSLog(subsystem: "Proposal", category: OSLog.Category.pointsOfInterest)
-        os_signpost(.begin, log: log, name: "Proposal-Eval")
-        
+        assert(inputs[1].dataType == MLMultiArrayDataType.float32)
+
+        //Probabilities of each region containing an object. Shape : (#regions, 2).
         let classProbabilities = inputs[0]
+        //Anchor deltas to refine the anchors shape. Shape : (#regions,4)
         let anchorDeltas = inputs[1]
 
         let preNonMaxLimit = self.preNonMaxSupressionLimit
         let maxProposals = self.proposalLimit
         
-        let foregroundProbability = extractForegroundProbabilities(rpnClassMultiArray: classProbabilities)
-        var (sortedProbabilities,sortedProbabilitiesIndices) = sortProbabilities(probabilities: foregroundProbability, keepTop: preNonMaxLimit)
+        let totalNumberOfElements = Int(truncating:classProbabilities.shape[0])
+        let numberOfElementsToProcess = min(totalNumberOfElements, preNonMaxLimit)
         
-        let numberOfElementsToProcess = vDSP_Length(sortedProbabilities.count)
+        //We extract only the object probabilities, which are always at the odd indices of the array
+        let objectProbabilities = classProbabilities.floatDataPointer().stridedSlice(begin: 1, count: totalNumberOfElements, stride: 2)
         
-        let boxElementLength:UInt = 4
-        let boxCount = numberOfElementsToProcess*boxElementLength
+        //We sort the probabilities in descending order and get the index so as to reorder the other arrays.
+        //We also clip to the limit.
+        var sortedProbabilityIndices = objectProbabilities.sortedIndices(ascending: false)[0 ..< numberOfElementsToProcess].toFloat()
         
+        //We broadcast the probability indices so that the index the boxes (anchor deltas and anchors)
+        
+        let boxElementLength = 4
+        let boxCount = totalNumberOfElements*boxElementLength
         var boxIndices:[Float] = Array(repeating: 0, count: Int(boxCount))
-        let sortedProbabilitiesIndicesPointer = UnsafeMutablePointer<Float>(&sortedProbabilitiesIndices)
-        let boxIndicesPointer = UnsafeMutablePointer<Float>(&boxIndices)
-        computeIndices(fromIndicesPointer: sortedProbabilitiesIndicesPointer, toIndicesPointer: boxIndicesPointer, elementLength: boxElementLength, elementCount: numberOfElementsToProcess)
+        computeIndices(fromIndicesPointer: UnsafeMutablePointer<Float>(&sortedProbabilityIndices),
+                       toIndicesPointer: UnsafeMutablePointer<Float>(&boxIndices),
+                       elementLength: UInt(boxElementLength),
+                       elementCount: UInt(numberOfElementsToProcess))
         
-        let deltasPointer = UnsafeMutablePointer<Float>(OpaquePointer(anchorDeltas.dataPointer))
-        var sortedDeltas:[Float] = Array<Float>(repeating: 0, count: Int(boxCount))
-        let sortedDeltasPointer = UnsafeMutablePointer<Float>(&sortedDeltas)
-        vDSP_vindex(deltasPointer, boxIndicesPointer, 1, sortedDeltasPointer, 1, vDSP_Length(boxCount))
+        //We sort the deltas and the anchors
         
-        var sortedAnchors:[Float] = Array<Float>(repeating: 0, count: Int(boxCount))
-        let sortedAnchorPointer = UnsafeMutablePointer<Float>(&sortedAnchors)
+        var sortedDeltas:BoxArray = anchorDeltas.floatDataPointer().indexed(indices: boxIndices)
         
-        self.anchorData.withUnsafeBytes {
-            (data:UnsafePointer<Float>) in
-            vDSP_vindex(data, boxIndicesPointer, 1, sortedAnchorPointer, 1, vDSP_Length(boxCount))
+        var sortedAnchors:BoxArray = self.anchorData.withUnsafeBytes {
+            (data:UnsafePointer<Float>) -> [Float] in
+            return data.indexed(indices: boxIndices)
         }
         
         //For each element of deltas, multiply by stdev
         
         var stdDev = self.boundingBoxRefinementStandardDeviation
         let stdDevPointer = UnsafeMutablePointer<Float>(&stdDev)
-        elementWiseMultiply(matrixPointer: sortedDeltasPointer, vectorPointer: stdDevPointer, height:Int(numberOfElementsToProcess), width: stdDev.count)
-        var resultBoxes = applyBoxDeltas(boxes: sortedAnchors, deltas: sortedDeltas)
-        let resultBoxesPointer = UnsafeMutablePointer<Float>(&resultBoxes)
-        clipBoxes(boxesPointer: resultBoxesPointer, elementCount: Int(numberOfElementsToProcess))
+        elementWiseMultiply(matrixPointer: UnsafeMutablePointer<Float>(&sortedDeltas), vectorPointer: stdDevPointer, height:numberOfElementsToProcess, width: stdDev.count)
         
-        let resultIndices = nonMaxSupression(boxes: resultBoxes,
-                                             indices: Array(0 ..< resultBoxes.count),
+        //We apply the box deltas and clip the results in place to the image boundaries
+        let anchorsReference = sortedAnchors.boxReference()
+        anchorsReference.applyBoxDeltas(sortedDeltas)
+        anchorsReference.clip()
+        
+        //We apply Non Max Supression to the result boxes
+        
+        let resultIndices = nonMaxSupression(boxes: sortedAnchors,
+                                             indices: Array(0 ..< sortedAnchors.count),
                                              iouThreshold: 0.7,
                                              max: maxProposals)
         
+        //We copy the result boxes corresponding to the resultIndices to the output
+        
         let output = outputs[0]
         let outputElementStride = Int(truncating: output.strides[0])
+        
         for (i,resultIndex) in resultIndices.enumerated() {
             for j in 0 ..< 4 {
-                output[i*outputElementStride+j] = resultBoxes[resultIndex*4+j] as NSNumber
+                output[i*outputElementStride+j] = sortedAnchors[resultIndex*4+j] as NSNumber
             }
         }
+        
+        //We add padding at the tail of the output 
         
         let proposalCount = resultIndices.count
         let paddingCount = max(0,maxProposals-proposalCount)*outputElementStride
         output.padTailWithZeros(startIndex: proposalCount*outputElementStride, count: paddingCount)
-        
-        os_signpost(.end, log: log, name: "Proposal-Eval")
     }
     
 }
-
-func extractForegroundProbabilities(rpnClassMultiArray:MLMultiArray) -> [Float] {
-    
-    let totalElements = Int(truncating:rpnClassMultiArray.shape[0])
-    //The successor points to the foreground class of the first element
-    let rpnClassPointer = UnsafeMutablePointer<Float>(OpaquePointer(rpnClassMultiArray.dataPointer)).successor()
-    
-    var foregroundProbability:[Float] = Array(repeating: 0, count: totalElements)
-    let foregroundProbabilityPointer = UnsafeMutablePointer<Float>(&foregroundProbability)
-    cblas_scopy(Int32(totalElements), rpnClassPointer, 2, foregroundProbabilityPointer, 1)
-    return foregroundProbability
-}
-
-func sortProbabilities(probabilities:[Float], keepTop:Int) -> ([Float],[Float]) {
-    
-    var probabilities = probabilities
-    let probabilitiesPointer = UnsafeMutablePointer<Float>(&probabilities)
-    let totalElements = vDSP_Length(probabilities.count)
-    
-    var indices = Array<vDSP_Length>(0 ..< totalElements)
-    let indicesPointer = UnsafeMutablePointer<vDSP_Length>(&indices)
-    vDSP_vsorti(probabilitiesPointer, indicesPointer, nil, totalElements, -1)
-    
-    //We clip to the limit
-    let numberOfElementsToProcess = min(totalElements, vDSP_Length(keepTop))
-    
-    var floatIndices:[Float] = Array<Float>(indices[0..<Int(numberOfElementsToProcess)].map({ (integerValue) -> Float in
-        return Float(integerValue)
-    }))
-    let floatIndicesPointer = UnsafeMutablePointer<Float>(&floatIndices)
-    
-    var sortedForegroundProbability:[Float] = Array<Float>(repeating: 0, count: Int(numberOfElementsToProcess))
-    let sortedForegroundProbabilityPointer = UnsafeMutablePointer<Float>(&sortedForegroundProbability)
-    
-    vDSP_vindex(probabilitiesPointer, floatIndicesPointer, 1, sortedForegroundProbabilityPointer, 1, numberOfElementsToProcess)
-    
-    return (sortedForegroundProbability,floatIndices)
-}
-
-func computeIndices(fromIndicesPointer:UnsafeMutablePointer<Float>,
-                    toIndicesPointer:UnsafeMutablePointer<Float>,
-                    elementLength:UInt,
-                    elementCount:UInt) {
-    cblas_scopy(Int32(elementCount), fromIndicesPointer, 1, toIndicesPointer, Int32(elementLength))
-    
-    for i in 1 ..< Int(elementLength) {
-        cblas_scopy(Int32(elementCount), fromIndicesPointer, 1, toIndicesPointer.advanced(by: i), Int32(elementLength))
-    }
-    
-    var multiplicationScalar:Float = Float(elementLength)
-    let multiplicationScalarPointer = UnsafeMutablePointer<Float>(&multiplicationScalar)
-    vDSP_vsmul(toIndicesPointer, 1, multiplicationScalarPointer, toIndicesPointer, 1, elementLength*elementCount)
-    
-    for i in 1 ..< Int(elementLength) {
-        
-        var shift:Float = Float(i)
-        let shiftPointer = UnsafeMutablePointer<Float>(&shift)
-        
-        vDSP_vsadd(toIndicesPointer.advanced(by: i), vDSP_Stride(elementLength), shiftPointer, toIndicesPointer.advanced(by: i), vDSP_Stride(elementLength), elementCount)
-    }
-}
-

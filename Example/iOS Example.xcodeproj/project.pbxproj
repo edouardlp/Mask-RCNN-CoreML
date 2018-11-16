@@ -11,13 +11,13 @@
 		05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */; };
 		05800F08219C8E7B00832400 /* DetectionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F02219C8E7B00832400 /* DetectionLayer.swift */; };
 		05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F03219C8E7B00832400 /* ProposalLayer.swift */; };
-		05800F0A219C8E7B00832400 /* BoxUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F04219C8E7B00832400 /* BoxUtils.swift */; };
+		05800F0A219C8E7B00832400 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F04219C8E7B00832400 /* Utils.swift */; };
 		05800F11219C8ECD00832400 /* MaskRCNN.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05800F0F219C8ECD00832400 /* MaskRCNN.mlmodel */; };
 		05800F14219C8EDF00832400 /* anchors.bin in Resources */ = {isa = PBXBuildFile; fileRef = 05800F13219C8EDF00832400 /* anchors.bin */; };
 		05800F16219C9F6700832400 /* DetectionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F15219C9F6700832400 /* DetectionRenderer.swift */; };
 		05800F18219C9FB900832400 /* Detection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F17219C9FB900832400 /* Detection.swift */; };
 		05800F1A219CCC2900832400 /* Mask.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05800F19219CCC2900832400 /* Mask.mlmodel */; };
-		05800F1C219DF53E00832400 /* MultiArrayUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F1B219DF53E00832400 /* MultiArrayUtils.swift */; };
+		05800F1E219F0B4400832400 /* BoxUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F1D219F0B4400832400 /* BoxUtils.swift */; };
 		05B55095219C877A00974728 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B55094219C877A00974728 /* AppDelegate.swift */; };
 		05B55097219C877A00974728 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B55096219C877A00974728 /* ViewController.swift */; };
 		05B5509A219C877A00974728 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 05B55098219C877A00974728 /* Main.storyboard */; };
@@ -30,13 +30,13 @@
 		05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PyramidROIAlignLayer.swift; path = ../../Library/PyramidROIAlignLayer.swift; sourceTree = "<group>"; };
 		05800F02219C8E7B00832400 /* DetectionLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetectionLayer.swift; path = ../../Library/DetectionLayer.swift; sourceTree = "<group>"; };
 		05800F03219C8E7B00832400 /* ProposalLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ProposalLayer.swift; path = ../../Library/ProposalLayer.swift; sourceTree = "<group>"; };
-		05800F04219C8E7B00832400 /* BoxUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = BoxUtils.swift; path = ../../Library/BoxUtils.swift; sourceTree = "<group>"; };
+		05800F04219C8E7B00832400 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Utils.swift; path = ../../Library/Utils.swift; sourceTree = "<group>"; };
 		05800F0F219C8ECD00832400 /* MaskRCNN.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = MaskRCNN.mlmodel; path = ../../Data/MaskRCNN.mlmodel; sourceTree = "<group>"; };
 		05800F13219C8EDF00832400 /* anchors.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; name = anchors.bin; path = ../../Data/anchors.bin; sourceTree = "<group>"; };
 		05800F15219C9F6700832400 /* DetectionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionRenderer.swift; sourceTree = "<group>"; };
 		05800F17219C9FB900832400 /* Detection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Detection.swift; path = ../../Library/Detection.swift; sourceTree = "<group>"; };
 		05800F19219CCC2900832400 /* Mask.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = Mask.mlmodel; path = ../../Data/Mask.mlmodel; sourceTree = "<group>"; };
-		05800F1B219DF53E00832400 /* MultiArrayUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MultiArrayUtils.swift; path = ../../Library/MultiArrayUtils.swift; sourceTree = "<group>"; };
+		05800F1D219F0B4400832400 /* BoxUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BoxUtils.swift; path = ../../Library/BoxUtils.swift; sourceTree = "<group>"; };
 		05B55091219C877A00974728 /* Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		05B55094219C877A00974728 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		05B55096219C877A00974728 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -65,8 +65,8 @@
 				05800F02219C8E7B00832400 /* DetectionLayer.swift */,
 				05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */,
 				05800F17219C9FB900832400 /* Detection.swift */,
-				05800F04219C8E7B00832400 /* BoxUtils.swift */,
-				05800F1B219DF53E00832400 /* MultiArrayUtils.swift */,
+				05800F04219C8E7B00832400 /* Utils.swift */,
+				05800F1D219F0B4400832400 /* BoxUtils.swift */,
 			);
 			name = Library;
 			sourceTree = "<group>";
@@ -200,10 +200,10 @@
 				05800F11219C8ECD00832400 /* MaskRCNN.mlmodel in Sources */,
 				05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */,
 				05B55095219C877A00974728 /* AppDelegate.swift in Sources */,
-				05800F1C219DF53E00832400 /* MultiArrayUtils.swift in Sources */,
+				05800F1E219F0B4400832400 /* BoxUtils.swift in Sources */,
 				05800F06219C8E7B00832400 /* FixedTimeDistributedLayer.swift in Sources */,
 				05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */,
-				05800F0A219C8E7B00832400 /* BoxUtils.swift in Sources */,
+				05800F0A219C8E7B00832400 /* Utils.swift in Sources */,
 				05800F16219C9F6700832400 /* DetectionRenderer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
