@@ -57,6 +57,8 @@ import Accelerate
     var preNonMaxSupressionLimit = 6000
     //Maximum # of regions to output
     var proposalLimit = 1000
+    //Threshold below which to supress regions that overlap
+    var nonMaxSupressionInteresectionOverUnionThreshold:Float = 0.7
     
     required init(parameters: [String : Any]) throws {
         super.init()
@@ -71,6 +73,9 @@ import Accelerate
         }
         if let proposalLimit = parameters["proposalLimit"] as? Int {
             self.proposalLimit = proposalLimit
+        }
+        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["nmsIOUThreshold"] as? Float {
+            self.nonMaxSupressionInteresectionOverUnionThreshold = nonMaxSupressionInteresectionOverUnionThreshold
         }
     }
     
@@ -105,17 +110,11 @@ import Accelerate
         
         //We sort the probabilities in descending order and get the index so as to reorder the other arrays.
         //We also clip to the limit.
-        var sortedProbabilityIndices = objectProbabilities.sortedIndices(ascending: false)[0 ..< numberOfElementsToProcess].toFloat()
+        let sortedProbabilityIndices = objectProbabilities.sortedIndices(ascending: false)[0 ..< numberOfElementsToProcess].toFloat()
         
-        //We broadcast the probability indices so that the index the boxes (anchor deltas and anchors)
-        
+        //We broadcast the probability indices so that they index the boxes (anchor deltas and anchors)
         let boxElementLength = 4
-        let boxCount = totalNumberOfElements*boxElementLength
-        var boxIndices:[Float] = Array(repeating: 0, count: Int(boxCount))
-        computeIndices(fromIndicesPointer: UnsafeMutablePointer<Float>(&sortedProbabilityIndices),
-                       toIndicesPointer: UnsafeMutablePointer<Float>(&boxIndices),
-                       elementLength: UInt(boxElementLength),
-                       elementCount: UInt(numberOfElementsToProcess))
+        let boxIndices = broadcastedIndices(indices: sortedProbabilityIndices, toElementLength: boxElementLength)
         
         //We sort the deltas and the anchors
         
@@ -141,7 +140,7 @@ import Accelerate
         
         let resultIndices = nonMaxSupression(boxes: sortedAnchors,
                                              indices: Array(0 ..< sortedAnchors.count),
-                                             iouThreshold: 0.7,
+                                             iouThreshold: self.nonMaxSupressionInteresectionOverUnionThreshold,
                                              max: maxProposals)
         
         //We copy the result boxes corresponding to the resultIndices to the output
@@ -155,8 +154,8 @@ import Accelerate
             }
         }
         
-        //We add padding at the tail of the output 
-        
+        //Zero-pad the rest as CoreML does not erase the memory between evaluations
+
         let proposalCount = resultIndices.count
         let paddingCount = max(0,maxProposals-proposalCount)*outputElementStride
         output.padTailWithZeros(startIndex: proposalCount*outputElementStride, count: paddingCount)

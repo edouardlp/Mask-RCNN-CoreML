@@ -10,13 +10,70 @@ import Foundation
 import CoreML
 import Accelerate
 
+/**
+
+ DetectionLayer is a Custom ML Layer that outputs object detections.
+ 
+ DetectionLayer outputs detections based on the confidence of an object
+ (any non-background class) being detected in each region.
+ Regions that overlap more than a given threshold are removed
+ through a process called Non-Max Supression (NMS).
+ 
+ The regions of interest are adjusted using deltas provided as input to refine
+ how they enclose the detected objects.
+ 
+ The layer takes three inputs :
+ 
+ - Regions of interest. Shape : (#regions,4)
+ - Class probabilities. Shape : (#regions,#classes)
+ - Bounding box deltas to refine the regions of interests shape. Shape : (#regions,4)
+ 
+ The regions of interest are layed out as follows : (y1,x1,y2,x2).
+ 
+ The class probability input is layed out such that the index 0 corresponds to the
+ background class.
+ 
+ The bounding box deltas are layed out as follows : (dy,dx,log(dh),log(dw)).
+ 
+ The layer takes three parameters :
+ 
+ - boundingBoxRefinementStandardDeviation : Bounding box deltas refinement standard deviation
+ - detectionLimit : Maximum # of detections to output
+ 
+ The layer has one ouput :
+ 
+ - Detections (y1,x1,y2,x2,classId,score). Shape : (#regionsOut,6)
+ 
+The classId is the argmax of in the class probability input.
+ 
+ */
 @objc(DetectionLayer) class DetectionLayer: NSObject, MLCustomLayer {
-
-    let outputShapes:[[NSNumber]] = [[100,1,6,1,1]]
-    let boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
-
+    
+    //Bounding box deltas refinement standard deviation
+    var boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
+    //Maximum # of detections to output
+    var detectionLimit = 100
+    //Threshold below which to discard regions
+    var lowConfidenceScoreThreshold:Float = 0.3
+    //Threshold below which to supress regions that overlap
+    var nonMaxSupressionInteresectionOverUnionThreshold:Float = 0.3
+    
     required init(parameters: [String : Any]) throws {
+        
         super.init()
+        
+        if let boundingBoxRefinementStandardDeviation = parameters["bboxStdDev"] as? [Float]  {
+            self.boundingBoxRefinementStandardDeviation = boundingBoxRefinementStandardDeviation
+        }
+        if let detectionLimit = parameters["detectionLimit"] as? Int {
+            self.detectionLimit = detectionLimit
+        }
+        if let lowConfidenceScoreThreshold = parameters["scoreThreshold"] as? Float {
+            self.lowConfidenceScoreThreshold = lowConfidenceScoreThreshold
+        }
+        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["nmsIOUThreshold"] as? Float {
+            self.nonMaxSupressionInteresectionOverUnionThreshold = nonMaxSupressionInteresectionOverUnionThreshold
+        }
     }
     
     func setWeightData(_ weights: [Data]) throws {
@@ -24,77 +81,83 @@ import Accelerate
     }
     
     func outputShapes(forInputShapes inputShapes: [[NSNumber]]) throws -> [[NSNumber]] {
+
+        let roisShape = inputShapes[0]
+        
+        let seq = detectionLimit as NSNumber
+        let batch = roisShape[1]
+        let channels:NSNumber = 6//(y1,x1,y2,x2,classId,score)
+        let height:NSNumber = 1
+        let width:NSNumber = 1
+        let outputShapes = [[seq,batch,channels,height,width]]
         return outputShapes
     }
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
-        assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
-        let log = OSLog(subsystem: "Detection", category: OSLog.Category.pointsOfInterest)
-        os_signpost(.begin, log: log, name: "Detection-Eval")
-        
+        //Regions of interest. Shape : (#regions,4)
+        //(y1,x1,y2,x2)
         let rois = inputs[0]
-        let roisPointer = UnsafeMutablePointer<Float>(OpaquePointer(rois.dataPointer))
-        let probabilities = inputs[1] //(N,num_classes)
-        let probabilitiesPointer = UnsafeMutablePointer<Float>(OpaquePointer(probabilities.dataPointer))
+        assert(inputs[0].dataType == MLMultiArrayDataType.float32)
 
+        //Class probabilities. Shape : (#regions,#classes)
+        //Index 0 of each region is the background class
+        let probabilities = inputs[1]
+        assert(inputs[1].dataType == MLMultiArrayDataType.float32)
+
+        //Bounding box deltas to refine the regions of interests shape. Shape : (#regions,4)
+        //(dy,dx,log(dh),log(dw))
         let boundingBoxDeltas = inputs[2]
-        let boundingBoxDeltasPointer = UnsafeMutablePointer<Float>(OpaquePointer(boundingBoxDeltas.dataPointer))
+        assert(inputs[2].dataType == MLMultiArrayDataType.float32)
 
-        let N = UInt(truncating:rois.shape[0])//1000
-        let maxDetections = 100
-        let numberOfClasses = UInt(truncating:probabilities.shape[2])//81
-
-        var (scores,classIds) = maximumValuesWithIndices2d(values: probabilitiesPointer, rows: N, columns: numberOfClasses)
-
-        let scoresPointer = UnsafeMutablePointer<Float>(&scores)
-
-        //Start from all indices of rois. Omit background class and apply threshold
+        let inputRegionsCount = UInt(truncating:rois.shape[0])
+        let classesCount = UInt(truncating:probabilities.shape[2])
+        let maxDetections = self.detectionLimit
         
+        //Retrieve the maximum value in each row (score), as well as the column index (classId)
+        var (scores,classIds) = maximumValuesWithIndices2d(values: probabilities.floatDataPointer(),
+                                                           rows: inputRegionsCount,
+                                                           columns: classesCount)
+
+        //Start from all indices of rois and apply threshold
         var filteredIndices = indicesOfRoisWithHighScores(scores: UnsafeMutablePointer<Float>(&scores),
-                                                          threshold: 0.3,
+                                                          threshold: self.lowConfidenceScoreThreshold,
                                                           count: UInt(scores.count))
+        
+        //Omit background class
         filteredIndices = filteredIndices.filter { (index) -> Bool in
             let intIndex = Int(index)
             let classId = classIds[intIndex]
             return classId > 0
         }
         
-        //Gather based on filtered indices
         
-        let filteredRois = gather(values: roisPointer,
-                                  valueSize: 4,
-                                  indices: filteredIndices,
-                                  indicesLength: UInt(filteredIndices.count))
-
-        let filteredScores = gather(values: scoresPointer,
-                                    valueSize: 1,
-                                    indices: filteredIndices,
-                                    indicesLength: UInt(filteredIndices.count))
+        //Gather rois based on filtered indices
+        let boxElementLength = 4
+        let boxIndices = broadcastedIndices(indices: filteredIndices, toElementLength: boxElementLength)
+        var filteredRois = rois.floatDataPointer().indexed(indices: boxIndices)
         
-        var floatClass:[Float] = Array<Float>(classIds.map({ (integerValue) -> Float in
-            return Float(exactly: integerValue)!
-        }))
-        let floatClassPointer = UnsafeMutablePointer<Float>(&floatClass)
-        let filteredClass = gather(values: floatClassPointer,
-                                   valueSize: 1,
-                                   indices: filteredIndices,
-                                   indicesLength: UInt(filteredIndices.count))
+        //Gather scores based on filtered indices
+        let filteredScores = UnsafeMutablePointer<Float>(&scores).indexed(indices:filteredIndices)
         
+        //Gather classes based on filtered indices
+        var floatClass = classIds.toFloat()
+        let filteredClass = UnsafeMutablePointer<Float>(&floatClass).indexed(indices:filteredIndices)
+     
+        //Gather deltas based on filtered indices
         let boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds)
+        var filteredDeltas = boundingBoxDeltas.floatDataPointer().indexed(indices: boundingBoxDeltaIndices)
         
-        var filteredDeltas = gather(values: boundingBoxDeltasPointer,
-                                    valueSize: 1,
-                                    indices: boundingBoxDeltaIndices,
-                                    indicesLength: UInt(boundingBoxDeltaIndices.count))
-        
+        //Multiply bounding box deltas by std dev
         var stdDev = self.boundingBoxRefinementStandardDeviation
         let stdDevPointer = UnsafeMutablePointer<Float>(&stdDev)
         elementWiseMultiply(matrixPointer: UnsafeMutablePointer<Float>(&filteredDeltas), vectorPointer: stdDevPointer, height:filteredClass.count, width: stdDev.count)
 
-        var resultBoxes = applyBoxDeltas(boxes: filteredRois, deltas: filteredDeltas)
-        resultBoxes.boxReference().clip()
+        //Apply deltas and clip rois
+        let roisReference = filteredRois.boxReference()
+        roisReference.applyBoxDeltas(filteredDeltas)
+        roisReference.clip()
 
         var nmsBoxIds = [Int]()
         let classIdSet = Set(filteredClass)
@@ -108,9 +171,10 @@ import Accelerate
                     return offset
             }
             
-            let nmsResults = nonMaxSupression(boxes: resultBoxes,
+            let nmsResults = nonMaxSupression(boxes: filteredRois,
                                               indices: indicesOfClass,
-                                              iouThreshold: 0.3, max: 100)
+                                              iouThreshold: self.nonMaxSupressionInteresectionOverUnionThreshold,
+                                              max: self.detectionLimit)
             nmsBoxIds.append(contentsOf:nmsResults)
         }
                 
@@ -118,7 +182,7 @@ import Accelerate
         let resultIndices:[Int] = {
             () -> [Int] in
             
-            let maxElements = min(nmsBoxIds.count, 100)
+            let maxElements = min(nmsBoxIds.count, self.detectionLimit)
             
             var scores = Array<Float>(repeating: 0.0, count: nmsBoxIds.count)
             
@@ -144,29 +208,23 @@ import Accelerate
         let output = outputs[0]
         let outputElementStride = Int(truncating: output.strides[0])
         
-        if(output[0] != 0) {
-            print(output[0])
-        }
-        
-        //Gather indices so that output is [N, (y1, x1, y2, x2, class_id, score)]
+        //Layout output is [NOut, (y1, x1, y2, x2, class_id, score)]
         
         for (i,resultIndex) in resultIndices.enumerated() {
             
             for j in 0 ..< boxLength {
-                output[i*outputElementStride+j] = resultBoxes[resultIndex*boxLength+j] as NSNumber
+                output[i*outputElementStride+j] = filteredRois[resultIndex*boxLength+j] as NSNumber
             }
             output[i*outputElementStride+4] = filteredClass[resultIndex] as NSNumber
             output[i*outputElementStride+5] = filteredScores[resultIndex] as NSNumber
         }
         
-        //Zero-pad the rest
+        //Zero-pad the rest as CoreML does not erase the memory between evaluations
         
         let detectionsCount = resultIndices.count
         let paddingCount = max(0,maxDetections-detectionsCount)*outputElementStride
         
         output.padTailWithZeros(startIndex: detectionsCount*outputElementStride, count: paddingCount)
-        
-        os_signpost(.end, log: log, name: "Detection-Eval")
     }
 
 }
@@ -184,8 +242,7 @@ func maximumValuesWithIndices2d(values:UnsafePointer<Float>,
     
     //NOTE : We could find resultValues using vDSP_vswmax, but how would we find the index? This solution appears faster
     
-    for _ in 0 ..< rows
-    {
+    for _ in 0 ..< rows {
         vDSP_maxvi(valuesMovingPointer,
                    1,
                    resultValuesPointer,
@@ -257,27 +314,3 @@ func deltasIndices(indices:[Float],
     
     return result
 }
-
-func gather(values:UnsafePointer<Float>,
-            valueSize:UInt,
-            indices:[Float],
-            indicesLength:UInt) -> [Float] {
-    let resultCount =  Int(indicesLength*valueSize)
-    var result = Array<Float>(repeating: 0.0, count:resultCount)
-    let resultPointer = UnsafeMutablePointer<Float>(&result)
-    
-    var indicesOfValueSize = Array<Float>(repeating: 0.0, count:resultCount)
-    
-    for (i,index) in indices.enumerated() {
-        
-        for j in 0 ..< Int(valueSize) {
-            indicesOfValueSize[i*Int(valueSize)+j] = index*Float(valueSize)+Float(j)
-        }
-        
-    }
-    
-    let indicesOfValueSizePointer = UnsafeMutablePointer<Float>(&indicesOfValueSize)
-    vDSP_vindex(values, indicesOfValueSizePointer, 1, resultPointer, 1, indicesLength)
-    return result
-}
-

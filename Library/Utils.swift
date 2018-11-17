@@ -33,6 +33,19 @@ extension UnsafePointer where Pointee == Float {
     }
 }
 
+extension UnsafeMutablePointer where Pointee == Float {
+    
+    func toUnmutable() -> UnsafePointer<Float> {
+        return UnsafePointer(self)
+    }
+    
+    func indexed(indices:[Float]) -> [Float] {
+        return self.toUnmutable().indexed(indices: indices)
+    }
+    
+}
+    
+
 extension Array where Element == Float {
     
     func sortedIndices(ascending:Bool) -> [UInt] {
@@ -45,6 +58,16 @@ extension Array where Element == Float {
                     vDSP_Length(array.count),
                     ascending ? 1 : -1)
         return indices
+    }
+    
+}
+
+extension Array where Element == UInt {
+    
+    func toFloat() -> [Float] {
+        return Array<Float>(self.map({ (integerValue) -> Float in
+            return Float(integerValue)
+        }))
     }
     
 }
@@ -80,6 +103,44 @@ extension MLMultiArray {
     
 }
 
+func broadcastedIndices(indices:[Float], toElementLength elementLength:Int) -> [Float] {
+    
+    var indices:[Float] = indices
+    let resultCount = elementLength*indices.count
+    var resultIndices:[Float] = Array(repeating: 0, count: resultCount)
+    
+    for i in 0 ..< Int(elementLength) {
+        cblas_scopy(Int32(indices.count),
+                    UnsafeMutablePointer<Float>(&indices),
+                    1,
+                    UnsafeMutablePointer<Float>(&resultIndices).advanced(by: i),
+                    Int32(elementLength))
+    }
+    
+    var multiplicationScalar = Float(elementLength)
+    vDSP_vsmul(UnsafeMutablePointer<Float>(&resultIndices),
+               1,
+               UnsafeMutablePointer<Float>(&multiplicationScalar),
+               UnsafeMutablePointer<Float>(&resultIndices),
+               1,
+               vDSP_Length(resultCount))
+    
+    for i in 1 ..< Int(elementLength) {
+        
+        var shift:Float = Float(i)
+        let shiftPointer = UnsafeMutablePointer<Float>(&shift)
+        
+        vDSP_vsadd(UnsafeMutablePointer<Float>(&resultIndices).advanced(by: i),
+                   vDSP_Stride(elementLength),
+                   shiftPointer,
+                   UnsafeMutablePointer<Float>(&resultIndices).advanced(by: i),
+                   vDSP_Stride(elementLength),
+                   vDSP_Length(indices.count))
+    }
+    
+    return resultIndices
+}
+
 func computeIndices(fromIndicesPointer:UnsafeMutablePointer<Float>,
                     toIndicesPointer:UnsafeMutablePointer<Float>,
                     elementLength:UInt,
@@ -101,50 +162,6 @@ func computeIndices(fromIndicesPointer:UnsafeMutablePointer<Float>,
         
         vDSP_vsadd(toIndicesPointer.advanced(by: i), vDSP_Stride(elementLength), shiftPointer, toIndicesPointer.advanced(by: i), vDSP_Stride(elementLength), elementCount)
     }
-}
-
-func applyBoxDeltas(boxes:[Float],
-                    deltas:[Float]) -> [Float] {
-    
-    precondition(boxes.count == deltas.count)
-    
-    var results:[Float] = Array(repeating: 0.0, count: boxes.count)
-    
-    for i in 0 ..< boxes.count/4 {
-        
-        let y1 = boxes[i*4]
-        let x1 = boxes[i*4+1]
-        let y2 = boxes[i*4+2]
-        let x2 = boxes[i*4+3]
-        
-        let deltaY1 = deltas[i*4]
-        let deltaX1 = deltas[i*4+1]
-        let deltaY2 = deltas[i*4+2]
-        let deltaX2 = deltas[i*4+3]
-        
-        var height = y2 - y1
-        var width = x2 - x1
-        var centerY = y1 + 0.5 * height
-        var centerX = x1 + 0.5 * width
-        
-        centerY += deltaY1 * height
-        centerX += deltaX1 * width
-        
-        height *= exp(deltaY2)
-        width *= exp(deltaX2)
-        
-        let resultY1 = centerY - 0.5 * height
-        let resultX1 = centerX - 0.5 * width
-        let resultY2 = resultY1 + height
-        let resultX2 = resultX1 + width
-        
-        results[i*4] = resultY1
-        results[i*4+1] = resultX1
-        results[i*4+2] = resultY2
-        results[i*4+3] = resultX2
-    }
-    
-    return results
 }
 
 func elementWiseMultiply(matrixPointer:UnsafeMutablePointer<Float>,
