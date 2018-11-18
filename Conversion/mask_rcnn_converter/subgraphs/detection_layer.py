@@ -2,51 +2,10 @@ import keras
 import tensorflow as tf
 import numpy as np
 
-############################################################
-#  Detection Layer
-############################################################
-
-def apply_box_deltas_graph(boxes, deltas):
-    """Applies the given deltas to the given boxes.
-    boxes: [N, (y1, x1, y2, x2)] boxes to update
-    deltas: [N, (dy, dx, log(dh), log(dw))] refinements to apply
-    """
-    # Convert to y, x, h, w
-    height = boxes[:, 2] - boxes[:, 0]
-    width = boxes[:, 3] - boxes[:, 1]
-    center_y = boxes[:, 0] + 0.5 * height
-    center_x = boxes[:, 1] + 0.5 * width
-    # Apply deltas
-    center_y += deltas[:, 0] * height
-    center_x += deltas[:, 1] * width
-    height *= tf.exp(deltas[:, 2])
-    width *= tf.exp(deltas[:, 3])
-    # Convert back to y1, x1, y2, x2
-    y1 = center_y - 0.5 * height
-    x1 = center_x - 0.5 * width
-    y2 = y1 + height
-    x2 = x1 + width
-    result = tf.stack([y1, x1, y2, x2], axis=1, name="apply_box_deltas_out")
-    return result
-
-
-
-def clip_boxes_graph(boxes, window):
-    """
-    boxes: [N, (y1, x1, y2, x2)]
-    window: [4] in the form y1, x1, y2, x2
-    """
-    # Split
-    wy1, wx1, wy2, wx2 = tf.split(window, 4)
-    y1, x1, y2, x2 = tf.split(boxes, 4, axis=1)
-    # Clip
-    y1 = tf.maximum(tf.minimum(y1, wy2), wy1)
-    x1 = tf.maximum(tf.minimum(x1, wx2), wx1)
-    y2 = tf.maximum(tf.minimum(y2, wy2), wy1)
-    x2 = tf.maximum(tf.minimum(x2, wx2), wx1)
-    clipped = tf.concat([y1, x1, y2, x2], axis=1, name="clipped_boxes")
-    clipped.set_shape((clipped.shape[0], 4))
-    return clipped
+from .utils import batch_slice
+from .utils import apply_box_deltas_graph
+from .utils import clip_boxes_graph
+from .utils import norm_boxes_graph
 
 def refine_detections_graph(rois,
                             probs,
@@ -164,9 +123,12 @@ class DetectionLayer(keras.engine.Layer):
 
     def __init__(self, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
-        self.IMAGES_PER_GPU = 1
-        self.BATCH_SIZE = 1
-        self.DETECTION_MAX_INSTANCES = 100
+        self.images_per_gpu = 1
+        self.batch_size = 1
+        self.max_detections = 100
+        self.bounding_box_std_dev = [0.1, 0.1, 0.2, 0.2]
+        self.detection_min_confidence = 0.7
+        self.detection_nms_threshold = 0.3
 
     def call(self, inputs):
         rois = inputs[0]
@@ -177,8 +139,11 @@ class DetectionLayer(keras.engine.Layer):
         # in the image that excludes the padding.
         # Use the shape of the first image in the batch to normalize the window
         # because we know that all images get resized to the same size.
+
+        #TODO: get these sizes from config
         image_shape = tf.convert_to_tensor([256,256,3], dtype=tf.float32)
         window = tf.convert_to_tensor([0,0,256,256], dtype=tf.float32)
+
         window = tf.reshape(window, [-1,4])
         window = norm_boxes_graph(window, image_shape[:2])
         window = tf.reshape(window, [-1,4])
@@ -187,70 +152,17 @@ class DetectionLayer(keras.engine.Layer):
         # Run detection refinement graph on each item in the batch
         detections_batch = batch_slice(
             [rois, mrcnn_class, mrcnn_bbox, window],
-            lambda x, y, w, z: refine_detections_graph(x, y, w, z, np.array([0.1, 0.1, 0.2, 0.2]), 0.7, 100, 0.3),
-            self.IMAGES_PER_GPU)
+            lambda x, y, w, z: refine_detections_graph(x, y, w, z, np.array(self.bounding_box_std_dev), self.detection_min_confidence, self.max_detections, self.detection_nms_threshold),
+            self.images_per_gpu)
 
         # Reshape output
         # [batch, num_detections, (y1, x1, y2, x2, class_id, class_score)] in
         # normalized coordinates
         detections = tf.reshape(
             detections_batch,
-            [self.BATCH_SIZE, self.DETECTION_MAX_INSTANCES, 6])
+            [self.batch_size, self.max_detections, 6])
         return detections
 
 
     def compute_output_shape(self, input_shape):
-        return (None, self.DETECTION_MAX_INSTANCES, 6)
-
-def batch_slice(inputs, graph_fn, batch_size, names=None):
-    """Splits inputs into slices and feeds each slice to a copy of the given
-    computation graph and then combines the results. It allows you to run a
-    graph on a batch of inputs even if the graph is written to support one
-    instance only.
-
-    inputs: list of tensors. All must have the same first dimension length
-    graph_fn: A function that returns a TF tensor that's part of a graph.
-    batch_size: number of slices to divide the data into.
-    names: If provided, assigns names to the resulting tensors.
-    """
-    if not isinstance(inputs, list):
-        inputs = [inputs]
-
-    outputs = []
-    for i in range(batch_size):
-        inputs_slice = [x[i] for x in inputs]
-        output_slice = graph_fn(*inputs_slice)
-        if not isinstance(output_slice, (tuple, list)):
-            output_slice = [output_slice]
-        outputs.append(output_slice)
-    # Change outputs from a list of slices where each is
-    # a list of outputs to a list of outputs and each has
-    # a list of slices
-    outputs = list(zip(*outputs))
-
-    if names is None:
-        names = [None] * len(outputs)
-
-    result = [tf.stack(o, axis=0, name=n)
-              for o, n in zip(outputs, names)]
-    if len(result) == 1:
-        result = result[0]
-
-    return result
-
-
-def norm_boxes_graph(boxes, shape):
-    """Converts boxes from pixel coordinates to normalized coordinates.
-    boxes: [..., (y1, x1, y2, x2)] in pixel coordinates
-    shape: [..., (height, width)] in pixels
-
-    Note: In pixel coordinates (y2, x2) is outside the box. But in normalized
-    coordinates it's inside the box.
-
-    Returns:
-        [..., (y1, x1, y2, x2)] in normalized coordinates
-    """
-    h, w = tf.split(tf.cast(shape, tf.float32), 2)
-    scale = tf.concat([h, w, h, w], axis=-1) - tf.constant(1.0)
-    shift = tf.constant([0., 0., 1., 1.])
-    return tf.divide(boxes - shift, scale)
+        return (None, self.max_detections, 6)

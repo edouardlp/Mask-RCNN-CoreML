@@ -35,16 +35,18 @@ import Accelerate
  
  The bounding box deltas are layed out as follows : (dy,dx,log(dh),log(dw)).
  
- The layer takes three parameters :
+ The layer takes four parameters :
  
  - boundingBoxRefinementStandardDeviation : Bounding box deltas refinement standard deviation
  - detectionLimit : Maximum # of detections to output
+ - lowConfidenceScoreThreshold : Threshold below which to discard regions
+ - nonMaxSupressionInteresectionOverUnionThreshold : Threshold below which to supress regions that overlap
  
  The layer has one ouput :
  
  - Detections (y1,x1,y2,x2,classId,score). Shape : (#regionsOut,6)
  
-The classId is the argmax of in the class probability input.
+The classIds are the argmax of each rows in the class probability input.
  
  */
 @objc(DetectionLayer) class DetectionLayer: NSObject, MLCustomLayer {
@@ -54,7 +56,7 @@ The classId is the argmax of in the class probability input.
     //Maximum # of detections to output
     var detectionLimit = 100
     //Threshold below which to discard regions
-    var lowConfidenceScoreThreshold:Float = 0.3
+    var lowConfidenceScoreThreshold:Float = 0.7
     //Threshold below which to supress regions that overlap
     var nonMaxSupressionInteresectionOverUnionThreshold:Float = 0.3
     
@@ -71,7 +73,7 @@ The classId is the argmax of in the class probability input.
         if let lowConfidenceScoreThreshold = parameters["scoreThreshold"] as? Float {
             self.lowConfidenceScoreThreshold = lowConfidenceScoreThreshold
         }
-        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["nmsIOUThreshold"] as? Float {
+        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["D"] as? Float {
             self.nonMaxSupressionInteresectionOverUnionThreshold = nonMaxSupressionInteresectionOverUnionThreshold
         }
     }
@@ -131,7 +133,6 @@ The classId is the argmax of in the class probability input.
             let classId = classIds[intIndex]
             return classId > 0
         }
-        
         
         //Gather rois based on filtered indices
         let boxElementLength = 4
@@ -239,8 +240,6 @@ func maximumValuesWithIndices2d(values:UnsafePointer<Float>,
     
     let columnsInt = Int(columns)
     var valuesMovingPointer = values
-    
-    //NOTE : We could find resultValues using vDSP_vswmax, but how would we find the index? This solution appears faster
     
     for _ in 0 ..< rows {
         vDSP_maxvi(valuesMovingPointer,

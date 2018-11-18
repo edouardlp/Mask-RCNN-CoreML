@@ -10,16 +10,47 @@ import Foundation
 import CoreML
 import Accelerate
 import MetalPerformanceShaders
-import os.signpost
 
+/**
+ 
+ PyramidROIAlignLayer is a Custom ML Layer that extracts feature maps based on the regions of interest.
+ 
+ PyramidROIAlignLayer outputs aligned feature maps by cropping and
+ resizing portions of the input feature maps based on the regions of interest.
+ 
+ The region's size determine which input feature map is used.
+ 
+  The layer takes five inputs :
+ - Regions of interest. Shape (#regions, 4)
+ - 4 feature maps of different sizes. Shapes : (#channels,256,256), (#channels,128,128),
+ (#channels,64,64),(#channels,32,32)
+ 
+ The layer takes two parameters :
+ - poolSize : The size of the output feature map
+ - imageSize : The input image sizes
+ 
+ The imageSize is used to determine which feature map to use
+
+ The layer has one output
+ - Feature maps. Shape (#regions, 1, #channels, poolSize, poolSize)
+
+ */
 @objc(PyramidROIAlignLayer) class PyramidROIAlignLayer: NSObject, MLCustomLayer {
     
+    let maxBatchSize = 32//TODO: compute based on metal buffer sizes
     var poolSize:Int = 7
+    var imageSize = CGSize(width: 1024, height: 1024)
     
     required init(parameters: [String : Any]) throws {
         super.init()
+        
         if let poolSize = parameters["poolSize"] as? Int {
             self.poolSize = poolSize
+        }
+        
+        if let imageWidth = parameters["imageWidth"] as? CGFloat,
+           let imageHeight = parameters["imageHeight"] as? CGFloat {
+            self.imageSize = CGSize(width: imageWidth, height: imageHeight)
         }
     }
     
@@ -28,6 +59,7 @@ import os.signpost
     }
     
     func outputShapes(forInputShapes inputShapes: [[NSNumber]]) throws -> [[NSNumber]] {
+        
         let roisShape = inputShapes[0]
         let featureMapShape = inputShapes[1]
         
@@ -44,8 +76,6 @@ import os.signpost
         
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
-        let log = OSLog(subsystem: "PyramidROIAlign", category: OSLog.Category.pointsOfInterest)
-        os_signpost(.begin, log: log, name: "Pyramid-Eval")
         let device = MTLCreateSystemDefaultDevice()!
         let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: 1)!
 
@@ -60,7 +90,10 @@ import os.signpost
         let outputWidth = self.poolSize
         let outputHeight = self.poolSize
         
-        let batches = roisToMPSRegionBatches(rois: rois)
+        let batches = roisToMPSRegionBatches(rois: rois,
+                                             maxBatchSize: self.maxBatchSize,
+                                             featureMapSelectionFactor: 224,
+                                             imageSize: self.imageSize)
         
         if(batches.isEmpty) {
             return
@@ -78,13 +111,12 @@ import os.signpost
         let outputPointer = UnsafeMutablePointer<Float>(OpaquePointer(outputs[0].dataPointer))
         
         let resultStride = Int(truncating: outputs[0].strides[0])
-        let metalRegion = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0), size: MTLSize(width: outputWidth, height: outputHeight, depth: 1))
+        let metalRegion = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
+                                    size: MTLSize(width: outputWidth, height: outputHeight, depth: 1))
         
-        //We write to the same images
-        
+        //We write to the same images to improve performance
         var outputImages = Array<MPSImage>()
-        
-        for _ in 0 ..< 32 {
+        for _ in 0 ..< self.maxBatchSize {
             outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels)))
         }
 
@@ -92,6 +124,7 @@ import os.signpost
             
             let batchOutputs = performBatch(commandQueue: commandQueue,
                                             featureMaps: featureMapImages,
+                                            channelsSize:channels,
                                             outputWidth: outputWidth,
                                             outputHeight: outputHeight,
                                             batch: batch,
@@ -109,20 +142,20 @@ import os.signpost
             //TODO: add zeros where a batch has invalid regions
 
         }
-        os_signpost(.end, log: log, name: "Pyramid-Eval")
     }
     
 }
 
 func performBatch(commandQueue:MTLCommandQueue,
                   featureMaps:[MPSImage],
+                  channelsSize:Int,
                   outputWidth:Int,
                   outputHeight:Int,
                   batch:MPSRegionBatchInput,
                   outputImages:[MPSImage]) -> [MPSRegionBatchOutput] {
     
     let buffer = commandQueue.makeCommandBufferWithUnretainedReferences()!//
-    let channels = 256
+    let channels = channelsSize
     let inputImage = featureMaps[batch.featureMapIndex]
     
     var batchOutputs = [MPSRegionBatchOutput]()
@@ -165,14 +198,16 @@ struct MPSRegionBatchOutput {
     let outputImage:MPSImage
 }
 
-func roisToMPSRegionBatches(rois:MLMultiArray) -> [MPSRegionBatchInput] {
+func roisToMPSRegionBatches(rois:MLMultiArray,
+                            maxBatchSize:Int,
+                            featureMapSelectionFactor:CGFloat,
+                            imageSize:CGSize) -> [MPSRegionBatchInput] {
     
     let totalCount = Int(truncating: rois.shape[0])
     var currentBatch:MPSRegionBatchInput?
     var result = [MPSRegionBatchInput]()
-    let maxBatchSize = 32//TODO:calculate bazed on metal buffer size
     let stride = Int(truncating: rois.strides[0])
-    let ratio = 0.21785//TODO: calculate based on image shape
+    let ratio = Double(featureMapSelectionFactor/sqrt(imageSize.width*imageSize.height))
     
     var mapLevels = [Int]()
     

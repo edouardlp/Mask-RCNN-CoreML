@@ -2,14 +2,14 @@ import keras
 
 class BackboneGraph():
 
-    pyramid_size = 256
-
-    def __init__(self, input_tensor):
+    def __init__(self, input_tensor, architecture, pyramid_size):
         self.input_tensor = input_tensor
+        self.architecture = architecture
+        self.pyramid_size = pyramid_size
 
     def build(self):
 
-        C1, C2, C3, C4, C5 = resnet_graph(self.input_tensor, architecture='resnet101', stage5=True, train_bn=False)
+        C1, C2, C3, C4, C5 = resnet_graph(self.input_tensor, architecture=self.architecture, stage5=True, train_bn=False)
 
         P5 = keras.layers.Conv2D(self.pyramid_size, (1, 1), name='fpn_c5p5')(C5)
 
@@ -37,8 +37,6 @@ class BackboneGraph():
         P6 = keras.layers.MaxPooling2D(pool_size=(1, 1), strides=2, name="fpn_p6")(P5)
 
         return [P2,P3,P4,P5,P6]
-
-
 
 
 def identity_block(input_tensor, kernel_size, filters, stage, block,

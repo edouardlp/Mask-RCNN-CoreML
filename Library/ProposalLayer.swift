@@ -36,15 +36,16 @@ import Accelerate
  
  The anchor deltas are layed out as follows : (dy,dx,log(dh),log(dw)).
  
- The layer takes three parameters :
+ The layer takes four parameters :
  
  - boundingBoxRefinementStandardDeviation : Anchor deltas refinement standard deviation
  - preNonMaxSupressionLimit : Maximum # of regions to evaluate for non max supression
  - proposalLimit : Maximum # of regions to output
+ - nonMaxSupressionInteresectionOverUnionThreshold : Threshold below which to supress regions that overlap
  
  The layer has one ouput :
  
- - Regions of interest. Shape : (#regionsOut,4),
+ - Regions of interest (y1,x1,y2,x2). Shape : (#regionsOut,4),
  
  */
 @objc(ProposalLayer) class ProposalLayer: NSObject, MLCustomLayer {

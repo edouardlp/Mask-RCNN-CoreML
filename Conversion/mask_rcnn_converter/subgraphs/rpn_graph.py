@@ -1,18 +1,24 @@
 import keras
-import tensorflow as tf
 
 class RPNGraph():
 
-    anchor_stride = 1
-    anchors_per_location = len([0.5, 1, 2])
-    depth = 256
+    def __init__(self,
+                 anchor_stride,
+                 anchors_per_location,
+                 depth,
+                 feature_maps):
+        self.anchor_stride = anchor_stride
+        self.anchors_per_location = anchors_per_location
+        self.depth = depth
+        self.feature_maps = feature_maps
 
     def build(self):
 
         anchor_stride = self.anchor_stride
         anchors_per_location = self.anchors_per_location
+        depth = self.depth
 
-        feature_map = keras.layers.Input(shape=[None, None, self.depth],
+        feature_map = keras.layers.Input(shape=[None, None, depth],
                                  name="input_rpn_feature_map")
 
         shared = keras.layers.Conv2D(512, (3, 3), padding='same', activation='relu',
@@ -40,4 +46,16 @@ class RPNGraph():
         # Reshape to [batch, anchors, 4]
         rpn_bbox = keras.layers.Reshape((-1, 4))(x)
 
-        return keras.models.Model(inputs=[feature_map], outputs=[rpn_class, rpn_bbox], name="rpn_model")
+        model = keras.models.Model(inputs=[feature_map], outputs=[rpn_class, rpn_bbox], name="rpn_model")
+
+        layer_outputs = []
+        for p in self.feature_maps:
+            layer_outputs.append(model([p]))
+        output_names = ["rpn_class", "rpn_bbox"]
+        outputs = list(zip(*layer_outputs))
+        outputs = [keras.layers.Concatenate(axis=1, name=n)(list(o))
+                   for o, n in zip(outputs, output_names)]
+
+        rpn_class, rpn_bbox = outputs
+
+        return rpn_class, rpn_bbox

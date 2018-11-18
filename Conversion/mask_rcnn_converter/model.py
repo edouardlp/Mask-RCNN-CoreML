@@ -12,43 +12,64 @@ import subgraphs.resnet101_fpn_backbone_graph as resnet101_fpn_backbone_graph
 import subgraphs.rpn_graph as rpn_graph
 import subgraphs.proposal_layer as proposal_layer
 import subgraphs.fpn_classifier_graph as fpn_classifier_graph
+import subgraphs.fpn_mask_graph as fpn_mask_graph
 import subgraphs.detection_layer as detection_layer
 
 def build_models(config_path,
                  weights_path,
                  anchors_path):
-    
-    input_image = keras.layers.Input(shape=[1024,1024,3], name="input_image")
-    graph = resnet101_fpn_backbone_graph.BackboneGraph(input_tensor=input_image)
-    P2, P3, P4, P5, P6 = graph.build()
 
-    rpn_feature_maps = [P2, P3, P4, P5, P6]
-    mrcnn_feature_maps = [P2, P3, P4, P5]
+    input_width = 1024
+    input_height = 1024
+    num_classes = 81
+    max_proposals = 1000
+    max_detections = 100
+    pyramid_top_down_size = 256
+    anchor_stride = 1
+    anchors_per_location = len([0.5, 1, 2])
+    proposal_nms_threshold = 0.7
 
-    rpn = rpn_graph.RPNGraph().build()
-    
-    layer_outputs = []
-    for p in rpn_feature_maps:
-        layer_outputs.append(rpn([p]))
-    output_names = ["rpn_class", "rpn_bbox"]
-    outputs = list(zip(*layer_outputs))
-    outputs = [keras.layers.Concatenate(axis=1, name=n)(list(o))
-               for o, n in zip(outputs, output_names)]
+    input_image = keras.layers.Input(shape=[input_width,input_height,3], name="input_image")
 
-    rpn_class, rpn_bbox = outputs
-    
-    proposal_count = 1000
+    backbone = resnet101_fpn_backbone_graph.BackboneGraph(input_tensor=input_image,
+                                                       architecture = 'resnet101',
+                                                       pyramid_size = pyramid_top_down_size)
+    P2, P3, P4, P5, P6 = backbone.build()
 
-    rpn_rois = proposal_layer.ProposalLayer(proposal_count=proposal_count,
-                                            nms_threshold=0.7,
+    rpn_class, rpn_bbox = rpn_graph.RPNGraph(anchor_stride=anchor_stride,
+                                             anchors_per_location=anchors_per_location,
+                                             depth=pyramid_top_down_size,
+                                             feature_maps=[P2, P3, P4, P5, P6]).build()
+
+    rpn_rois = proposal_layer.ProposalLayer(max_proposals=max_proposals,
+                                            nms_threshold=proposal_nms_threshold,
                                             name="ROI")([rpn_class, rpn_bbox])
-    mrcnn_class, mrcnn_bbox = fpn_classifier_graph.FPNClassifierGraph(rpn_rois, mrcnn_feature_maps).build()
-    mrcnn_bbox = keras.layers.Permute((3,2,1))(mrcnn_bbox)
+
+
+    mrcnn_feature_maps = [P2, P3, P4, P5]
+    classifier_pool_size = 7
+    mask_pool_size = 14
+
+    #TODO:fc_layers_size
+    mrcnn_class, mrcnn_bbox = fpn_classifier_graph.FPNClassifierGraph(rois=rpn_rois,
+                                                                      feature_maps=mrcnn_feature_maps,
+                                                                      pool_size=classifier_pool_size,
+                                                                      num_classes=num_classes,
+                                                                      max_regions=max_proposals,
+                                                                      fc_layers_size=1024,
+                                                                      pyramid_top_down_size=pyramid_top_down_size).build()
 
     detections = detection_layer.DetectionLayer(name="mrcnn_detection")([rpn_rois, mrcnn_class, mrcnn_bbox])
-    detections = keras.layers.Reshape((100,6))(detections)
+    #TODO: try to remove this line
+    detections = keras.layers.Reshape((max_detections,6))(detections)
 
-    fpn_mask_model, mrcnn_mask = fpn_classifier_graph.FPNMaskGraph(detections, mrcnn_feature_maps,14,81).build()
+    fpn_mask_model, mrcnn_mask = fpn_mask_graph.FPNMaskGraph(rois=detections,
+                                                             feature_maps=mrcnn_feature_maps,
+                                                             pool_size=mask_pool_size,
+                                                             num_classes=num_classes,
+                                                             max_regions=max_detections,
+                                                             pyramid_top_down_size=pyramid_top_down_size,
+                                                             weights_path=weights_path).build()
 
     mask_rcnn_model = keras.models.Model(input_image,
                                      [detections, mrcnn_mask],
@@ -70,12 +91,17 @@ def export_models(mask_rcnn_model,
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "ProposalLayer"
         params.description = ""
+        #boundingBoxRefinementStandardDeviation
+        #preNonMaxSupressionLimit
+        #proposalLimit
+        #nonMaxSupressionInteresectionOverUnionThreshold
         return params
 
     def convert_pyramid(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "PyramidROIAlignLayer"
         params.parameters["poolSize"].intValue = layer.pool_shape[0]
+        # imageSize = CGSize(width: 1024, height: 1024)
         params.description = ""
         return params
 
@@ -98,16 +124,17 @@ def export_models(mask_rcnn_model,
                                                            add_custom_layers=True,
                                                            custom_conversion_functions={"ProposalLayer": convert_proposal,
                                                                                         "PyramidROIAlign": convert_pyramid,
-                                                                                        "FixedTimeDistributed": convert_time_distributed,
+                                                                                        "TimeDistributedMask": convert_time_distributed,
                                                                                         "DetectionLayer": convert_detection})
 
     mask_rcnn_model.author = author
     mask_rcnn_model.license = license
     mask_rcnn_model.short_description = "Mask-RCNN"
     mask_rcnn_model.input_description["image"] = "Input image"
+    full_spec = mask_rcnn_model.get_spec()
     half_model = coremltools.models.utils.convert_neural_network_weights_to_fp16(mask_rcnn_model)
     half_spec = half_model.get_spec()
-    coremltools.utils.save_spec(half_spec, export_main_path)
+    coremltools.utils.save_spec(full_spec, export_main_path)
     
     mask_model_coreml = coremltools.converters.keras.convert(mask_model,
                                                              input_names=["pooled_region"],
