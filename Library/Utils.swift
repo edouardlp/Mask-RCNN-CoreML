@@ -1,6 +1,6 @@
 //
 //  Utils.swift
-//  Mask-RCNN-Demo
+//  Mask-RCNN-CoreML
 //
 //  Created by Edouard Lavery-Plante on 2018-11-06.
 //  Copyright © 2018 Edouard Lavery Plante. All rights reserved.

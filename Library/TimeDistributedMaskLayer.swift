@@ -1,5 +1,5 @@
 //
-//  FixedTimeDistributedLayer.swift
+//  TimeDistributedMask.swift
 //  Mask-RCNN-Demo
 //
 //  Created by Edouard Lavery-Plante on 2018-10-31.
@@ -10,10 +10,9 @@ import Foundation
 import CoreML
 import Accelerate
 
-@objc(FixedTimeDistributedLayer) class FixedTimeDistributedLayer: NSObject, MLCustomLayer {
+@objc(TimeDistributedMaskLayer) class TimeDistributedMaskLayer: NSObject, MLCustomLayer {
 
-    let featureNames:[String] = ["pooled_region"]
-    let outputShapes:[[NSNumber]] = [[1,1,100,28,28]]
+    let featureNames:[String] = ["feature_map"]
     
     required init(parameters: [String : Any]) throws {
         super.init()
@@ -24,6 +23,15 @@ import Accelerate
     }
     
     func outputShapes(forInputShapes inputShapes: [[NSNumber]]) throws -> [[NSNumber]] {
+        let featureMapShape = inputShapes[0]
+        let poolHeight = featureMapShape[3]
+        let poolWidth = featureMapShape[4]
+        let seq = 1 as NSNumber
+        let batch = featureMapShape[1]
+        let channel = featureMapShape[0]
+        let height = Int(truncating: poolHeight)*2 as NSNumber
+        let width = Int(truncating: poolWidth)*2 as NSNumber
+        let outputShapes = [[seq,batch,channel,height,width]]
         return outputShapes
     }
     
@@ -32,21 +40,21 @@ import Accelerate
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
         let detections = inputs[1]
+        let detectionCount = Int(truncating: detections.shape[0])
         let detectionsStride = Int(truncating: detections.strides[0])
         
         let model = Mask().model
         let predictionOptions = MLPredictionOptions()
+        
         //Temporary, otherwise we seem to consume all system memory
         predictionOptions.usesCPUOnly = true
+        
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, featureNames: self.featureNames)
         let batchOut = try model.predictions(from: batchIn, options: predictionOptions)
-        let resultFeatureNames = ["mask"]
+        let resultFeatureNames = ["masks"]
         
         let output = outputs[0]
         let outputStride = Int(truncating: output.strides[2])
-        //let outputComponentsSize = MemoryLayout<Float>.size
-        
-        let maxMasks = 100
         
         for i in 0..<batchOut.count {
             let featureProvider = batchOut.features(at: i)
@@ -79,7 +87,7 @@ import Accelerate
         }
         
         let resultCount = batchOut.count
-        let paddingCount = max(0,maxMasks-resultCount)*outputStride
+        let paddingCount = max(0,detectionCount-resultCount)*outputStride
         output.padTailWithZeros(startIndex: resultCount*outputStride, count: paddingCount)
     }
     
@@ -99,6 +107,7 @@ class MultiArrayBatchProvider : MLBatchProvider
     
     init(multiArrays:[MLMultiArray],
          featureNames:[String]) {
+        
         self.multiArrays = multiArrays
         self.featureNames = featureNames
         
@@ -150,7 +159,8 @@ class MultiArrayFeatureProvider : MLFeatureProvider
             return nil
         }
         let multiArray = self.multiArrays[featureIndex]
-        guard let outputMultiArray = try? MLMultiArray(dataPointer: multiArray.dataPointer.advanced(by: Int(truncating: multiArray.strides[0])*index*4), shape: Array(multiArray.shape[2...4]), dataType: multiArray.dataType, strides: Array(multiArray.strides[2...4]), deallocator: nil) else
+        let outputComponentsSize = MemoryLayout<Float>.size
+        guard let outputMultiArray = try? MLMultiArray(dataPointer: multiArray.dataPointer.advanced(by: Int(truncating: multiArray.strides[0])*index*outputComponentsSize), shape: Array(multiArray.shape[2...4]), dataType: multiArray.dataType, strides: Array(multiArray.strides[2...4]), deallocator: nil) else
         {
             return nil
         }

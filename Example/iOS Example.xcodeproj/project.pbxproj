@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		05800F06219C8E7B00832400 /* FixedTimeDistributedLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */; };
+		05800F06219C8E7B00832400 /* TimeDistributedMaskLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */; };
 		05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */; };
 		05800F08219C8E7B00832400 /* DetectionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F02219C8E7B00832400 /* DetectionLayer.swift */; };
 		05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F03219C8E7B00832400 /* ProposalLayer.swift */; };
@@ -26,7 +26,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = FixedTimeDistributedLayer.swift; path = ../../Library/FixedTimeDistributedLayer.swift; sourceTree = "<group>"; };
+		05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = TimeDistributedMaskLayer.swift; path = ../../Library/TimeDistributedMaskLayer.swift; sourceTree = "<group>"; };
 		05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PyramidROIAlignLayer.swift; path = ../../Library/PyramidROIAlignLayer.swift; sourceTree = "<group>"; };
 		05800F02219C8E7B00832400 /* DetectionLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetectionLayer.swift; path = ../../Library/DetectionLayer.swift; sourceTree = "<group>"; };
 		05800F03219C8E7B00832400 /* ProposalLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ProposalLayer.swift; path = ../../Library/ProposalLayer.swift; sourceTree = "<group>"; };
@@ -63,7 +63,7 @@
 				05800F03219C8E7B00832400 /* ProposalLayer.swift */,
 				05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */,
 				05800F02219C8E7B00832400 /* DetectionLayer.swift */,
-				05800F00219C8E7A00832400 /* FixedTimeDistributedLayer.swift */,
+				05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */,
 				05800F17219C9FB900832400 /* Detection.swift */,
 				05800F04219C8E7B00832400 /* Utils.swift */,
 				05800F1D219F0B4400832400 /* BoxUtils.swift */,
@@ -201,7 +201,7 @@
 				05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */,
 				05B55095219C877A00974728 /* AppDelegate.swift in Sources */,
 				05800F1E219F0B4400832400 /* BoxUtils.swift in Sources */,
-				05800F06219C8E7B00832400 /* FixedTimeDistributedLayer.swift in Sources */,
+				05800F06219C8E7B00832400 /* TimeDistributedMaskLayer.swift in Sources */,
 				05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */,
 				05800F0A219C8E7B00832400 /* Utils.swift in Sources */,
 				05800F16219C9F6700832400 /* DetectionRenderer.swift in Sources */,

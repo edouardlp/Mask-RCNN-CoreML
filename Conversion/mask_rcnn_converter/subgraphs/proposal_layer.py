@@ -23,11 +23,11 @@ class ProposalLayer(keras.engine.Layer):
 
     def __init__(self, max_proposals, nms_threshold, **kwargs):
         super(ProposalLayer, self).__init__(**kwargs)
-        self.max_proposals = max_proposals
-        self.nms_threshold = nms_threshold
         self.images_per_gpu = 1
         self.bounding_box_std_dev = [0.1, 0.1, 0.2, 0.2]
         self.pre_nms_max_proposals = 6000
+        self.max_proposals = max_proposals
+        self.nms_threshold = nms_threshold
         self.anchors = np.load("Data/anchors.npy")
 
     def call(self, inputs):

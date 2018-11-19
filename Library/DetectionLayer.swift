@@ -1,6 +1,6 @@
 //
 //  DetectionLayer.swift
-//  Mask-RCNN-Demo
+//  Mask-RCNN-CoreML
 //
 //  Created by Edouard Lavery-Plante on 2018-11-06.
 //  Copyright © 2018 Edouard Lavery Plante. All rights reserved.
@@ -40,7 +40,7 @@ import Accelerate
  - boundingBoxRefinementStandardDeviation : Bounding box deltas refinement standard deviation
  - detectionLimit : Maximum # of detections to output
  - lowConfidenceScoreThreshold : Threshold below which to discard regions
- - nonMaxSupressionInteresectionOverUnionThreshold : Threshold below which to supress regions that overlap
+ - nmsIOUThreshold : Threshold below which to supress regions that overlap
  
  The layer has one ouput :
  
@@ -54,27 +54,36 @@ The classIds are the argmax of each rows in the class probability input.
     //Bounding box deltas refinement standard deviation
     var boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
     //Maximum # of detections to output
-    var detectionLimit = 100
+    var maxDetections = 100
     //Threshold below which to discard regions
     var lowConfidenceScoreThreshold:Float = 0.7
     //Threshold below which to supress regions that overlap
-    var nonMaxSupressionInteresectionOverUnionThreshold:Float = 0.3
+    var nmsIOUThreshold:Float = 0.3
     
     required init(parameters: [String : Any]) throws {
         
         super.init()
         
-        if let boundingBoxRefinementStandardDeviation = parameters["bboxStdDev"] as? [Float]  {
-            self.boundingBoxRefinementStandardDeviation = boundingBoxRefinementStandardDeviation
+        if let bboxStdDevCount = parameters["bboxStdDev_count"] as? Int {
+            var bboxStdDev = [Float]()
+            for i in 0..<bboxStdDevCount {
+                if let bboxStdDevItem = parameters["bboxStdDev_\(i)"] as? Double {
+                    bboxStdDev.append(Float(bboxStdDevItem))
+                }
+            }
+            if(bboxStdDev.count == bboxStdDevCount){
+                self.boundingBoxRefinementStandardDeviation = bboxStdDev
+            }
         }
-        if let detectionLimit = parameters["detectionLimit"] as? Int {
-            self.detectionLimit = detectionLimit
+        
+        if let maxDetections = parameters["maxDetections"] as? Int {
+            self.maxDetections = maxDetections
         }
-        if let lowConfidenceScoreThreshold = parameters["scoreThreshold"] as? Float {
-            self.lowConfidenceScoreThreshold = lowConfidenceScoreThreshold
+        if let lowConfidenceScoreThreshold = parameters["scoreThreshold"] as? Double {
+            self.lowConfidenceScoreThreshold = Float(lowConfidenceScoreThreshold)
         }
-        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["D"] as? Float {
-            self.nonMaxSupressionInteresectionOverUnionThreshold = nonMaxSupressionInteresectionOverUnionThreshold
+        if let nmsIOUThreshold = parameters["nmsIOUThreshold"] as? Double {
+            self.nmsIOUThreshold = Float(nmsIOUThreshold)
         }
     }
     
@@ -86,7 +95,7 @@ The classIds are the argmax of each rows in the class probability input.
 
         let roisShape = inputShapes[0]
         
-        let seq = detectionLimit as NSNumber
+        let seq = maxDetections as NSNumber
         let batch = roisShape[1]
         let channels:NSNumber = 6//(y1,x1,y2,x2,classId,score)
         let height:NSNumber = 1
@@ -115,7 +124,7 @@ The classIds are the argmax of each rows in the class probability input.
 
         let inputRegionsCount = UInt(truncating:rois.shape[0])
         let classesCount = UInt(truncating:probabilities.shape[2])
-        let maxDetections = self.detectionLimit
+        let maxDetections = self.maxDetections
         
         //Retrieve the maximum value in each row (score), as well as the column index (classId)
         var (scores,classIds) = maximumValuesWithIndices2d(values: probabilities.floatDataPointer(),
@@ -147,7 +156,7 @@ The classIds are the argmax of each rows in the class probability input.
         let filteredClass = UnsafeMutablePointer<Float>(&floatClass).indexed(indices:filteredIndices)
      
         //Gather deltas based on filtered indices
-        let boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds)
+        let boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds, numberOfClasses: Int(classesCount))
         var filteredDeltas = boundingBoxDeltas.floatDataPointer().indexed(indices: boundingBoxDeltaIndices)
         
         //Multiply bounding box deltas by std dev
@@ -174,8 +183,8 @@ The classIds are the argmax of each rows in the class probability input.
             
             let nmsResults = nonMaxSupression(boxes: filteredRois,
                                               indices: indicesOfClass,
-                                              iouThreshold: self.nonMaxSupressionInteresectionOverUnionThreshold,
-                                              max: self.detectionLimit)
+                                              iouThreshold: self.nmsIOUThreshold,
+                                              max: self.maxDetections)
             nmsBoxIds.append(contentsOf:nmsResults)
         }
                 
@@ -183,7 +192,7 @@ The classIds are the argmax of each rows in the class probability input.
         let resultIndices:[Int] = {
             () -> [Int] in
             
-            let maxElements = min(nmsBoxIds.count, self.detectionLimit)
+            let maxElements = min(nmsBoxIds.count, self.maxDetections)
             
             var scores = Array<Float>(repeating: 0.0, count: nmsBoxIds.count)
             
@@ -296,9 +305,10 @@ func indicesOfRoisWithHighScores(scores:UnsafeMutablePointer<Float>,
 }
 
 func deltasIndices(indices:[Float],
-                   classIds:[UInt]) -> [Float] {
+                   classIds:[UInt],
+                   numberOfClasses:Int) -> [Float] {
+    
     let boxLength = 4
-    let numberOfClasses = 81
     let indexStride = Float(numberOfClasses*boxLength)
     var result = Array<Float>()
     

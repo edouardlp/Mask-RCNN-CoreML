@@ -90,31 +90,40 @@ def export_models(mask_rcnn_model,
     def convert_proposal(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "ProposalLayer"
-        params.description = ""
-        #boundingBoxRefinementStandardDeviation
-        #preNonMaxSupressionLimit
-        #proposalLimit
-        #nonMaxSupressionInteresectionOverUnionThreshold
+        params.description = "Proposes regions of interests and performs NMS."
+        params.parameters["bboxStdDev_count"].intValue = len(layer.bounding_box_std_dev)
+        for idx,value in enumerate(layer.bounding_box_std_dev):
+            params.parameters["bboxStdDev_"+str(idx)].doubleValue = value
+        params.parameters["preNMSMaxProposals"].intValue = layer.pre_nms_max_proposals
+        params.parameters["maxProposals"].intValue = layer.max_proposals
+        params.parameters["nmsIOUThreshold"].doubleValue = layer.nms_threshold
         return params
 
     def convert_pyramid(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "PyramidROIAlignLayer"
         params.parameters["poolSize"].intValue = layer.pool_shape[0]
-        # imageSize = CGSize(width: 1024, height: 1024)
-        params.description = ""
+        params.parameters["imageWidth"].intValue = layer.image_shape[0]
+        params.parameters["imageHeight"].intValue = layer.image_shape[1]
+        params.description = "Extracts feature maps based on the regions of interest."
         return params
 
     def convert_time_distributed(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
-        params.className = "FixedTimeDistributedLayer"
-        params.description = ""
+        params.className = "TimeDistributedMaskLayer"
+        params.description = "Applies the Mask graph to each detections along the time dimension."
         return params
 
     def convert_detection(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "DetectionLayer"
-        params.description = ""
+        params.parameters["bboxStdDev_count"].intValue = len(layer.bounding_box_std_dev)
+        for idx,value in enumerate(layer.bounding_box_std_dev):
+            params.parameters["bboxStdDev_"+str(idx)].doubleValue = value
+        params.parameters["maxDetections"].intValue = layer.max_detections
+        params.parameters["scoreThreshold"].doubleValue = layer.detection_min_confidence
+        params.parameters["nmsIOUThreshold"].doubleValue = layer.detection_nms_threshold
+        params.description = "Outputs detections based on confidence and performs NMS."
         return params
 
     mask_rcnn_model = coremltools.converters.keras.convert(mask_rcnn_model,
@@ -131,17 +140,20 @@ def export_models(mask_rcnn_model,
     mask_rcnn_model.license = license
     mask_rcnn_model.short_description = "Mask-RCNN"
     mask_rcnn_model.input_description["image"] = "Input image"
-    full_spec = mask_rcnn_model.get_spec()
+    mask_rcnn_model.output_description["detections"] = "Detections (y1,x1,y2,x2,classId,score)"
+    mask_rcnn_model.output_description["mask"] = "Masks for the detections"
     half_model = coremltools.models.utils.convert_neural_network_weights_to_fp16(mask_rcnn_model)
     half_spec = half_model.get_spec()
-    coremltools.utils.save_spec(full_spec, export_main_path)
+    coremltools.utils.save_spec(half_spec, export_main_path)
     
     mask_model_coreml = coremltools.converters.keras.convert(mask_model,
-                                                             input_names=["pooled_region"],
-                                                             output_names=["mask"])
+                                                             input_names=["feature_map"],
+                                                             output_names=["masks"])
     mask_model_coreml.author = author
     mask_model_coreml.license = license
-    mask_model_coreml.short_description = "Mask"
+    mask_model_coreml.short_description = "Generates a mask for each class for a given feature map"
+    mask_model_coreml.input_description["feature_map"] = "Fully processed feature map, ready for mask generation."
+    mask_model_coreml.output_description["masks"] = "Masks corresponding to each class"
     half_mask_model = coremltools.models.utils.convert_neural_network_weights_to_fp16(mask_model_coreml)
     half_mask_spec = half_mask_model.get_spec()
     coremltools.utils.save_spec(half_mask_spec, export_mask_path)

@@ -1,6 +1,6 @@
 //
 //  ProposalLayer.swift
-//  Mask-RCNN-Demo
+//  Mask-RCNN-CoreML
 //
 //  Created by Edouard Lavery-Plante on 2018-10-26.
 //  Copyright © 2018 Edouard Lavery Plante. All rights reserved.
@@ -39,9 +39,9 @@ import Accelerate
  The layer takes four parameters :
  
  - boundingBoxRefinementStandardDeviation : Anchor deltas refinement standard deviation
- - preNonMaxSupressionLimit : Maximum # of regions to evaluate for non max supression
- - proposalLimit : Maximum # of regions to output
- - nonMaxSupressionInteresectionOverUnionThreshold : Threshold below which to supress regions that overlap
+ - preNMSMaxProposals : Maximum # of regions to evaluate for non max supression
+ - maxProposals : Maximum # of regions to output
+ - nmsIOUThreshold : Threshold below which to supress regions that overlap
  
  The layer has one ouput :
  
@@ -55,28 +55,37 @@ import Accelerate
     //Anchor deltas refinement standard deviation
     var boundingBoxRefinementStandardDeviation:[Float] = [0.1, 0.1, 0.2, 0.2]
     //Maximum # of regions to evaluate for non max supression
-    var preNonMaxSupressionLimit = 6000
+    var preNMSMaxProposals = 6000
     //Maximum # of regions to output
-    var proposalLimit = 1000
+    var maxProposals = 1000
     //Threshold below which to supress regions that overlap
-    var nonMaxSupressionInteresectionOverUnionThreshold:Float = 0.7
+    var nmsIOUThreshold:Float = 0.7
     
     required init(parameters: [String : Any]) throws {
         super.init()
         //TODO: generate the anchors on demand based on image shape
         self.anchorData = try Data(contentsOf: Bundle.main.url(forResource: "anchors", withExtension: "bin")!)
         
-        if let boundingBoxRefinementStandardDeviation = parameters["bboxStdDev"] as? [Float]  {
-            self.boundingBoxRefinementStandardDeviation = boundingBoxRefinementStandardDeviation
+        if let bboxStdDevCount = parameters["bboxStdDev_count"] as? Int {
+            var bboxStdDev = [Float]()
+            for i in 0..<bboxStdDevCount {
+                if let bboxStdDevItem = parameters["bboxStdDev_\(i)"] as? Double {
+                    bboxStdDev.append(Float(bboxStdDevItem))
+                }
+            }
+            if(bboxStdDev.count == bboxStdDevCount){
+                self.boundingBoxRefinementStandardDeviation = bboxStdDev
+            }
         }
-        if let preNonMaxSupressionLimit = parameters["preNonMaxSupressionLimit"] as? Int {
-            self.preNonMaxSupressionLimit = preNonMaxSupressionLimit
+        
+        if let preNMSMaxProposals = parameters["preNMSMaxProposals"] as? Int {
+            self.preNMSMaxProposals = preNMSMaxProposals
         }
-        if let proposalLimit = parameters["proposalLimit"] as? Int {
-            self.proposalLimit = proposalLimit
+        if let maxProposals = parameters["maxProposals"] as? Int {
+            self.maxProposals = maxProposals
         }
-        if let nonMaxSupressionInteresectionOverUnionThreshold = parameters["nmsIOUThreshold"] as? Float {
-            self.nonMaxSupressionInteresectionOverUnionThreshold = nonMaxSupressionInteresectionOverUnionThreshold
+        if let nmsIOUThreshold = parameters["nmsIOUThreshold"] as? Double {
+            self.nmsIOUThreshold = Float(nmsIOUThreshold)
         }
     }
     
@@ -86,7 +95,7 @@ import Accelerate
     
     func outputShapes(forInputShapes inputShapes: [[NSNumber]]) throws -> [[NSNumber]] {
         var outputshape = inputShapes[1]
-        outputshape[0] = NSNumber(integerLiteral: self.proposalLimit)
+        outputshape[0] = NSNumber(integerLiteral: self.maxProposals)
         return [outputshape]
     }
     
@@ -100,8 +109,8 @@ import Accelerate
         //Anchor deltas to refine the anchors shape. Shape : (#regions,4)
         let anchorDeltas = inputs[1]
 
-        let preNonMaxLimit = self.preNonMaxSupressionLimit
-        let maxProposals = self.proposalLimit
+        let preNonMaxLimit = self.preNMSMaxProposals
+        let maxProposals = self.maxProposals
         
         let totalNumberOfElements = Int(truncating:classProbabilities.shape[0])
         let numberOfElementsToProcess = min(totalNumberOfElements, preNonMaxLimit)
@@ -141,7 +150,7 @@ import Accelerate
         
         let resultIndices = nonMaxSupression(boxes: sortedAnchors,
                                              indices: Array(0 ..< sortedAnchors.count),
-                                             iouThreshold: self.nonMaxSupressionInteresectionOverUnionThreshold,
+                                             iouThreshold: self.nmsIOUThreshold,
                                              max: maxProposals)
         
         //We copy the result boxes corresponding to the resultIndices to the output
@@ -155,7 +164,7 @@ import Accelerate
             }
         }
         
-        //Zero-pad the rest as CoreML does not erase the memory between evaluations
+        //Zero-pad the rest since CoreML does not erase the memory between evaluations
 
         let proposalCount = resultIndices.count
         let paddingCount = max(0,maxProposals-proposalCount)*outputElementStride
@@ -163,3 +172,62 @@ import Accelerate
     }
     
 }
+
+//
+//def generate_anchors(scales, ratios, shape, feature_stride, anchor_stride):
+//"""
+//scales: 1D array of anchor sizes in pixels. Example: [32, 64, 128]
+//ratios: 1D array of anchor ratios of width/height. Example: [0.5, 1, 2]
+//shape: [height, width] spatial shape of the feature map over which
+//to generate anchors.
+//feature_stride: Stride of the feature map relative to the image in pixels.
+//anchor_stride: Stride of anchors on the feature map. For example, if the
+//value is 2 then generate anchors for every other feature map pixel.
+//"""
+//# Get all combinations of scales and ratios
+//scales, ratios = np.meshgrid(np.array(scales), np.array(ratios))
+//scales = scales.flatten()
+//ratios = ratios.flatten()
+//
+//# Enumerate heights and widths from scales and ratios
+//heights = scales / np.sqrt(ratios)
+//widths = scales * np.sqrt(ratios)
+//
+//# Enumerate shifts in feature space
+//shifts_y = np.arange(0, shape[0], anchor_stride) * feature_stride
+//shifts_x = np.arange(0, shape[1], anchor_stride) * feature_stride
+//shifts_x, shifts_y = np.meshgrid(shifts_x, shifts_y)
+//
+//# Enumerate combinations of shifts, widths, and heights
+//box_widths, box_centers_x = np.meshgrid(widths, shifts_x)
+//box_heights, box_centers_y = np.meshgrid(heights, shifts_y)
+//
+//# Reshape to get a list of (y, x) and a list of (h, w)
+//box_centers = np.stack(
+//[box_centers_y, box_centers_x], axis=2).reshape([-1, 2])
+//box_sizes = np.stack([box_heights, box_widths], axis=2).reshape([-1, 2])
+//
+//# Convert to corner coordinates (y1, x1, y2, x2)
+//boxes = np.concatenate([box_centers - 0.5 * box_sizes,
+//box_centers + 0.5 * box_sizes], axis=1)
+//return boxes
+//
+//
+//def generate_pyramid_anchors(scales, ratios, feature_shapes, feature_strides,
+//                             anchor_stride):
+//"""Generate anchors at different levels of a feature pyramid. Each scale
+//is associated with a level of the pyramid, but each ratio is used in
+//all levels of the pyramid.
+//
+//Returns:
+//anchors: [N, (y1, x1, y2, x2)]. All generated anchors in one array. Sorted
+//with the same order of the given scales. So, anchors of scale[0] come
+//first, then anchors of scale[1], and so on.
+//"""
+//# Anchors
+//# [anchor_count, (y1, x1, y2, x2)]
+//anchors = []
+//for i in range(len(scales)):
+//anchors.append(generate_anchors(scales[i], ratios, feature_shapes[i],
+//feature_strides[i], anchor_stride))
+//return np.concatenate(anchors, axis=0)
