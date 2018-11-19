@@ -22,13 +22,6 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--anchors_path',
-        help='Path to anchors file',
-        default="Data/anchors.npy",
-        required=False
-    )
-
-    parser.add_argument(
         '--export_main_path',
         help='Path to export main file',
         default="Data/MaskRCNN.mlmodel",
@@ -54,8 +47,6 @@ if __name__ == '__main__':
     
     config_path = params.pop('config_path')
     weights_path = params.pop('weights_path')
-    #TODO: remove and generate instead
-    anchors_path = params.pop('anchors_path')
     export_main_path = params.pop('export_main_path')
     export_mask_path = params.pop('export_mask_path')
     #TODO: remove and generate instead
@@ -63,7 +54,6 @@ if __name__ == '__main__':
 
     model.export(config_path=config_path,
                  weights_path=weights_path,
-                 anchors_path=anchors_path,
                  export_main_path=export_main_path,
                  export_mask_path=export_mask_path,
                  export_anchors_path=export_anchors_path,

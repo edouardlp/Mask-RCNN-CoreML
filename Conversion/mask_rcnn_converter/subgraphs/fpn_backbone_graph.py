@@ -9,6 +9,8 @@ class BackboneGraph():
 
     def build(self):
 
+        #TODO: support mobile graph here
+
         C1, C2, C3, C4, C5 = resnet_graph(self.input_tensor, architecture=self.architecture, stage5=True, train_bn=False)
 
         P5 = keras.layers.Conv2D(self.pyramid_size, (1, 1), name='fpn_c5p5')(C5)

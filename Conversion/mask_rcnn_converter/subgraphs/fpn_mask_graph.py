@@ -62,6 +62,7 @@ class FPNMaskGraph():
                  rois,
                  feature_maps,
                  pool_size,
+                 image_shape,
                  num_classes,
                  max_regions,
                  pyramid_top_down_size,
@@ -70,6 +71,7 @@ class FPNMaskGraph():
         self.rois = rois
         self.feature_maps = feature_maps
         self.pool_size = pool_size
+        self.image_shape = image_shape
         self.num_classes = num_classes
         self.max_regions = max_regions
         self.pyramid_top_down_size = pyramid_top_down_size
@@ -106,15 +108,18 @@ class FPNMaskGraph():
 
     def build(self):
 
-        pool_size = self.pool_size
         rois = self.rois
         feature_maps = self.feature_maps
+
+        pool_size = self.pool_size
+        image_shape = self.image_shape
         num_classes = self.num_classes
         max_regions = self.max_regions
         pyramid_top_down_size = self.pyramid_top_down_size
 
-        pyramid = PyramidROIAlign([pool_size, pool_size],
-                                  name="roi_align_mask")([rois] + feature_maps)
+        pyramid = PyramidROIAlign(name="roi_align_mask",
+                                  pool_shape=[pool_size, pool_size],
+                                  image_shape=image_shape)([rois] + feature_maps)
 
         x = TimeDistributedMask(max_regions=max_regions, num_classes=num_classes, depth=pyramid_top_down_size)([pyramid, rois])
 

@@ -8,75 +8,114 @@ import numpy as np
 
 from coremltools.proto import NeuralNetwork_pb2
 
-import subgraphs.resnet101_fpn_backbone_graph as resnet101_fpn_backbone_graph
-import subgraphs.rpn_graph as rpn_graph
-import subgraphs.proposal_layer as proposal_layer
-import subgraphs.fpn_classifier_graph as fpn_classifier_graph
-import subgraphs.fpn_mask_graph as fpn_mask_graph
-import subgraphs.detection_layer as detection_layer
+from subgraphs.fpn_backbone_graph import BackboneGraph
+from subgraphs.rpn_graph import RPNGraph
+from subgraphs.proposal_layer import ProposalLayer
+from subgraphs.fpn_classifier_graph import FPNClassifierGraph
+from subgraphs.fpn_mask_graph import FPNMaskGraph
+from subgraphs.detection_layer import DetectionLayer
 
 def build_models(config_path,
-                 weights_path,
-                 anchors_path):
+                 weights_path):
 
+    #TODO: load from config_path
+
+    architecture = 'resnet101'
     input_width = 1024
     input_height = 1024
+    input_image_shape = (input_width,input_height)
     num_classes = 81
+    pre_nms_max_proposals = 6000
     max_proposals = 1000
     max_detections = 100
     pyramid_top_down_size = 256
     anchor_stride = 1
-    anchors_per_location = len([0.5, 1, 2])
     proposal_nms_threshold = 0.7
+    detection_min_confidence = 0.7
+    detection_nms_threshold = 0.3
+    bounding_box_std_dev = [0.1, 0.1, 0.2, 0.2]
+    classifier_pool_size = 7
+    mask_pool_size = 14
+    fc_layers_size = 1024
+    anchor_scales = (32, 64, 128, 256, 512)
+    anchor_ratios = [0.5, 1, 2]
+    anchors_per_location = len(anchor_ratios)
+    backbone_strides = [4, 8, 16, 32, 64]
+    anchor_stride = 1
 
     input_image = keras.layers.Input(shape=[input_width,input_height,3], name="input_image")
 
-    backbone = resnet101_fpn_backbone_graph.BackboneGraph(input_tensor=input_image,
-                                                       architecture = 'resnet101',
-                                                       pyramid_size = pyramid_top_down_size)
+    backbone = BackboneGraph(input_tensor=input_image,
+                             architecture = architecture,
+                             pyramid_size = pyramid_top_down_size)
+
     P2, P3, P4, P5, P6 = backbone.build()
 
-    rpn_class, rpn_bbox = rpn_graph.RPNGraph(anchor_stride=anchor_stride,
-                                             anchors_per_location=anchors_per_location,
-                                             depth=pyramid_top_down_size,
-                                             feature_maps=[P2, P3, P4, P5, P6]).build()
+    rpn = RPNGraph(anchor_stride=anchor_stride,
+                   anchors_per_location=anchors_per_location,
+                   depth=pyramid_top_down_size,
+                   feature_maps=[P2, P3, P4, P5, P6])
 
-    rpn_rois = proposal_layer.ProposalLayer(max_proposals=max_proposals,
-                                            nms_threshold=proposal_nms_threshold,
-                                            name="ROI")([rpn_class, rpn_bbox])
+    #anchor_object_probs: Probability of each anchor containing only background or objects
+    #anchor_deltas: Bounding box refinements to apply to each anchor to better enclose its object
+    anchor_object_probs, anchor_deltas = rpn.build()
 
+    #rois: Regions of interest (regions of the image that probably contain an object)
+    proposal_layer = ProposalLayer(name="ROI",
+                                   image_shape=input_image_shape,
+                                   max_proposals=max_proposals,
+                                   pre_nms_max_proposals=pre_nms_max_proposals,
+                                   bounding_box_std_dev=bounding_box_std_dev,
+                                   nms_threshold=proposal_nms_threshold,
+                                   anchor_scales=anchor_scales,
+                                   anchor_ratios=anchor_ratios,
+                                   backbone_strides=backbone_strides,
+                                   anchor_stride=anchor_stride)
+
+    rois = proposal_layer([anchor_object_probs, anchor_deltas])
 
     mrcnn_feature_maps = [P2, P3, P4, P5]
-    classifier_pool_size = 7
-    mask_pool_size = 14
 
-    #TODO:fc_layers_size
-    mrcnn_class, mrcnn_bbox = fpn_classifier_graph.FPNClassifierGraph(rois=rpn_rois,
-                                                                      feature_maps=mrcnn_feature_maps,
-                                                                      pool_size=classifier_pool_size,
-                                                                      num_classes=num_classes,
-                                                                      max_regions=max_proposals,
-                                                                      fc_layers_size=1024,
-                                                                      pyramid_top_down_size=pyramid_top_down_size).build()
+    fpn_classifier_graph = FPNClassifierGraph(rois=rois,
+                                              feature_maps=mrcnn_feature_maps,
+                                              pool_size=classifier_pool_size,
+                                              image_shape=input_image_shape,
+                                              num_classes=num_classes,
+                                              max_regions=max_proposals,
+                                              fc_layers_size=fc_layers_size,
+                                              pyramid_top_down_size=pyramid_top_down_size)
 
-    detections = detection_layer.DetectionLayer(name="mrcnn_detection")([rpn_rois, mrcnn_class, mrcnn_bbox])
+    #rois_class_probs: Probability of each class being contained within the roi
+    #rois_deltas: Bounding box refinements to apply to each roi to better enclose its object
+    rois_class_probs, rois_deltas = fpn_classifier_graph.build()
+
+
+    detections = DetectionLayer(name="mrcnn_detection",
+                                max_detections=max_detections,
+                                bounding_box_std_dev=bounding_box_std_dev,
+                                detection_min_confidence=detection_min_confidence,
+                                detection_nms_threshold=detection_nms_threshold)([rois, rois_class_probs, rois_deltas])
+
     #TODO: try to remove this line
     detections = keras.layers.Reshape((max_detections,6))(detections)
 
-    fpn_mask_model, mrcnn_mask = fpn_mask_graph.FPNMaskGraph(rois=detections,
-                                                             feature_maps=mrcnn_feature_maps,
-                                                             pool_size=mask_pool_size,
-                                                             num_classes=num_classes,
-                                                             max_regions=max_detections,
-                                                             pyramid_top_down_size=pyramid_top_down_size,
-                                                             weights_path=weights_path).build()
+    fpn_mask_graph = FPNMaskGraph(rois=detections,
+                                  feature_maps=mrcnn_feature_maps,
+                                  pool_size=mask_pool_size,
+                                  image_shape=input_image_shape,
+                                  num_classes=num_classes,
+                                  max_regions=max_detections,
+                                  pyramid_top_down_size=pyramid_top_down_size,
+                                  weights_path=weights_path)
+
+    fpn_mask_model, masks = fpn_mask_graph.build()
 
     mask_rcnn_model = keras.models.Model(input_image,
-                                     [detections, mrcnn_mask],
+                                     [detections, masks],
                                      name='mask_rcnn_model')
 
     mask_rcnn_model.load_weights(weights_path, by_name=True)
-    return mask_rcnn_model, fpn_mask_model
+    return mask_rcnn_model, fpn_mask_model, proposal_layer.anchors
 
 def export_models(mask_rcnn_model,
                   mask_model,
@@ -161,13 +200,11 @@ def export_models(mask_rcnn_model,
 
 def export(config_path,
            weights_path,
-           anchors_path,
            export_main_path,
            export_mask_path,
            export_anchors_path,
            params):
 
-    mask_rcnn_model, mask_model = build_models(config_path,weights_path,anchors_path)
+    mask_rcnn_model, mask_model,anchors = build_models(config_path,weights_path)
     export_models(mask_rcnn_model, mask_model, export_main_path, export_mask_path, export_anchors_path)
-    anchors = np.load(anchors_path)
     anchors.tofile(export_anchors_path)

@@ -7,6 +7,9 @@ from .utils import apply_box_deltas_graph
 from .utils import clip_boxes_graph
 from .utils import norm_boxes_graph
 
+#NOTE: None of this will get exported to CoreML. This is only useful for python inference, and for CoreML to determine
+#input and output shapes.
+
 def refine_detections_graph(rois,
                             probs,
                             deltas,
@@ -121,14 +124,19 @@ class DetectionLayer(keras.engine.Layer):
     coordinates are normalized.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self,
+                 max_detections,
+                 bounding_box_std_dev,
+                 detection_min_confidence,
+                 detection_nms_threshold, **kwargs):
         super(DetectionLayer, self).__init__(**kwargs)
+        #TODO: since this is inference only, we may want to remove this
         self.images_per_gpu = 1
         self.batch_size = 1
-        self.max_detections = 100
-        self.bounding_box_std_dev = [0.1, 0.1, 0.2, 0.2]
-        self.detection_min_confidence = 0.7
-        self.detection_nms_threshold = 0.3
+        self.max_detections = max_detections
+        self.bounding_box_std_dev = bounding_box_std_dev
+        self.detection_min_confidence = detection_min_confidence
+        self.detection_nms_threshold = detection_nms_threshold
 
     def call(self, inputs):
         rois = inputs[0]

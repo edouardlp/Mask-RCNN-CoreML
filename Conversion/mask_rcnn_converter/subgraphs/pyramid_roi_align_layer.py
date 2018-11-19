@@ -1,6 +1,9 @@
 import keras
 import tensorflow as tf
 
+#NOTE: None of this will get exported to CoreML. This is only useful for python inference, and for CoreML to determine
+#input and output shapes.
+
 def log2_graph(x):
     """Implementation of Log2. TF doesn't have a native implementation."""
     return tf.log(x) / tf.log(2.0)
@@ -24,10 +27,12 @@ class PyramidROIAlign(keras.engine.Layer):
     The width and height are those specific in the pool_shape in the layer
     constructor.
     """
-    def __init__(self, pool_shape, **kwargs):
+    def __init__(self,
+                 pool_shape,
+                 image_shape, **kwargs):
         super(PyramidROIAlign, self).__init__(**kwargs)
         self.pool_shape = tuple(pool_shape)
-        self.image_shape = (1024,1024)
+        self.image_shape = image_shape
 
     def call(self, inputs):
         # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
