@@ -102,6 +102,9 @@ import Accelerate
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
+        let log = OSLog(subsystem: "ProposalLayer", category: OSLog.Category.pointsOfInterest)
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-Eval")
+        
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         assert(inputs[1].dataType == MLMultiArrayDataType.float32)
 
@@ -170,8 +173,10 @@ import Accelerate
         let proposalCount = resultIndices.count
         let paddingCount = max(0,maxProposals-proposalCount)*outputElementStride
         output.padTailWithZeros(startIndex: proposalCount*outputElementStride, count: paddingCount)
+        
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-Eval")
     }
-    
+
 }
 
 

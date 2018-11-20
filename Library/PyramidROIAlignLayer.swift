@@ -10,6 +10,7 @@ import Foundation
 import CoreML
 import Accelerate
 import MetalPerformanceShaders
+import os.signpost
 
 /**
  
@@ -76,6 +77,9 @@ import MetalPerformanceShaders
         
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         
+        let log = OSLog(subsystem: "PyramidROIAlign", category: OSLog.Category.pointsOfInterest)
+        os_signpost(OSSignpostType.begin, log: log, name: "PyramidROIAlign-Eval")
+        
         let device = MTLCreateSystemDefaultDevice()!
         let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: 1)!
 
@@ -90,10 +94,10 @@ import MetalPerformanceShaders
         let outputWidth = self.poolSize
         let outputHeight = self.poolSize
         
-        let batches = roisToMPSRegionBatches(rois: rois,
-                                             maxBatchSize: self.maxBatchSize,
-                                             featureMapSelectionFactor: 224,
-                                             imageSize: self.imageSize)
+        let items = roisToInputItems(rois: rois, featureMapSelectionFactor: 224, imageSize: self.imageSize)
+        let groups = groupInputItemsByContent(items: items)
+        
+        let batches = batchInputGroups(groups: groups, maxComputeBatchSize: self.maxBatchSize)
         
         if(batches.isEmpty) {
             return
@@ -108,7 +112,7 @@ import MetalPerformanceShaders
             return image
         }
         
-        let outputPointer = UnsafeMutablePointer<Float>(OpaquePointer(outputs[0].dataPointer))
+        let outputPointer = outputs[0].dataPointer
         
         let resultStride = Int(truncating: outputs[0].strides[0])
         let metalRegion = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
@@ -119,6 +123,8 @@ import MetalPerformanceShaders
         for _ in 0 ..< self.maxBatchSize {
             outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels)))
         }
+        
+        var paddingBuffer = Array<Float>(repeating: 0.0, count: self.maxBatchSize)
 
         for batch in batches {
             
@@ -133,15 +139,25 @@ import MetalPerformanceShaders
             for output in batchOutputs {
                 
                 let offset = output.offset * resultStride
-                let pointer = outputPointer.advanced(by:offset)
-                output.outputImage.readBytes(pointer,
-                                             dataLayout: MPSDataLayout.featureChannelsxHeightxWidth,
-                                             bytesPerRow: outputWidth*floatSize,
-                                             region: metalRegion, featureChannelInfo: MPSImageReadWriteParams(featureChannelOffset: 0, numberOfFeatureChannelsToReadWrite: channels), imageIndex: 0)
+                let pointer = outputPointer.advanced(by:offset*MemoryLayout<Float>.size)
+                switch(output.content){
+                case .image(image: let image):
+                    image.readBytes(pointer,
+                                    dataLayout: MPSDataLayout.featureChannelsxHeightxWidth,
+                                    bytesPerRow: outputWidth*floatSize,
+                                    region: metalRegion, featureChannelInfo: MPSImageReadWriteParams(featureChannelOffset: 0, numberOfFeatureChannelsToReadWrite: channels), imageIndex: 0)
+                case .padding(count: let paddingCount):
+                    if(paddingCount > paddingBuffer.count){
+                        paddingBuffer = Array<Float>(repeating: 0.0, count: paddingCount)
+                    }
+                    
+                    let bufferPointer = UnsafeMutableRawPointer(&paddingBuffer)
+                    pointer.copyMemory(from: bufferPointer, byteCount: MemoryLayout<Float>.size*paddingCount)
+                }
             }
-            //TODO: add zeros where a batch has invalid regions
 
         }
+        os_signpost(OSSignpostType.end, log: log, name: "PyramidROIAlign-Eval")
     }
     
 }
@@ -151,65 +167,132 @@ func performBatch(commandQueue:MTLCommandQueue,
                   channelsSize:Int,
                   outputWidth:Int,
                   outputHeight:Int,
-                  batch:MPSRegionBatchInput,
-                  outputImages:[MPSImage]) -> [MPSRegionBatchOutput] {
+                  batch:ROIAlignInputBatch,
+                  outputImages:[MPSImage]) -> [ROIAlignOutputItem] {
     
-    let buffer = commandQueue.makeCommandBufferWithUnretainedReferences()!//
+    let buffer = commandQueue.makeCommandBufferWithUnretainedReferences()!
     let channels = channelsSize
-    let inputImage = featureMaps[batch.featureMapIndex]
     
-    var batchOutputs = [MPSRegionBatchOutput]()
-    
-    for (r,region) in batch.regions.enumerated() {
-        
-        let outputImage = outputImages[r]
-        let output = MPSRegionBatchOutput(offset: batch.offset+r, outputImage: outputImage)
-        batchOutputs.append(output)
-        var regions = [region]
-        let regionsPointer = UnsafeMutablePointer<MPSRegion>(&regions)
-        let kernel = MPSNNCropAndResizeBilinear(device: commandQueue.device,
-                                                resizeWidth: outputWidth,
-                                                resizeHeight: outputHeight,
-                                                numberOfRegions: 1,
-                                                regions: regionsPointer)
-        
-        for slice in 0 ..< channels/4 {
-            kernel.sourceFeatureChannelOffset = slice*4
-            kernel.destinationFeatureChannelOffset = slice*4
-            kernel.encode(commandBuffer: buffer,
-                          sourceImage: inputImage,
-                          destinationImage: outputImage)
+    var outputItems = [ROIAlignOutputItem]()
+    var computeOffset:Int = 0
+
+    for group in batch.groups {
+        switch(group.content){
+        case .regions(featureMapIndex: let featureMapIndex, regions: let regions):
+            let inputImage = featureMaps[featureMapIndex]
+            for (r,region) in regions.enumerated() {
+                
+                let outputImage = outputImages[computeOffset]
+                let output = ROIAlignOutputItem(offset: group.offset+r, content: .image(image: outputImage))
+                outputItems.append(output)
+                var regions = [region]
+                let regionsPointer = UnsafeMutablePointer<MPSRegion>(&regions)
+                let kernel = MPSNNCropAndResizeBilinear(device: commandQueue.device,
+                                                        resizeWidth: outputWidth,
+                                                        resizeHeight: outputHeight,
+                                                        numberOfRegions: 1,
+                                                        regions: regionsPointer)
+                
+                for slice in 0 ..< channels/4 {
+                    kernel.sourceFeatureChannelOffset = slice*4
+                    kernel.destinationFeatureChannelOffset = slice*4
+                    kernel.encode(commandBuffer: buffer,
+                                  sourceImage: inputImage,
+                                  destinationImage: outputImage)
+                }
+                computeOffset += 1
+            }
+        case .padding(count: let paddingCount):
+            let output = ROIAlignOutputItem(offset: group.offset, content: .padding(count: paddingCount))
+            outputItems.append(output)
         }
     }
     
+    
     buffer.commit()
     buffer.waitUntilCompleted()
-    return batchOutputs
+    return outputItems
 }
 
-struct MPSRegionBatchInput {
+struct ROIAlignInputBatch {
+    
+    let groups:[ROIAlignInputGroup]
+    
+    var size:Int {
+        return self.groups.reduce(0, { (result, group) -> Int in
+            return result + group.size
+        })
+    }
+    
+    var computeSize:Int {
+        return self.groups.reduce(0, { (result, group) -> Int in
+            return result + group.computeSize
+        })
+    }
+    
+}
+
+struct ROIAlignInputGroup {
+    
+    enum Content {
+        case regions(featureMapIndex:Int, regions:[MPSRegion])
+        case padding(count:Int)
+    }
+    
     let offset:Int
-    let featureMapIndex:Int
-    var regions:[MPSRegion] = []
+    let content:Content
+    
+    var size:Int {
+        switch self.content {
+        case .padding(count: let count):
+            return count
+        default:
+            return self.computeSize
+        }
+    }
+    
+    var computeSize:Int {
+        switch self.content {
+        case .regions(featureMapIndex: _, regions: let regions):
+            return regions.count
+        default:
+            return 0
+        }
+    }
+    
 }
 
-struct MPSRegionBatchOutput {
+struct ROIAlignInputItem {
+    
+    enum Content {
+        case region(featureMapIndex:Int, region:MPSRegion)
+        case padding
+    }
+    
     let offset:Int
-    let outputImage:MPSImage
+    let content:Content
 }
 
-func roisToMPSRegionBatches(rois:MLMultiArray,
-                            maxBatchSize:Int,
-                            featureMapSelectionFactor:CGFloat,
-                            imageSize:CGSize) -> [MPSRegionBatchInput] {
+struct ROIAlignOutputItem {
+    
+    enum Content {
+        case image(image:MPSImage)
+        case padding(count:Int)
+    }
+    
+    let offset:Int
+    let content:Content
+}
+
+func roisToInputItems(rois:MLMultiArray,
+                      featureMapSelectionFactor:CGFloat,
+                      imageSize:CGSize) -> [ROIAlignInputItem] {
     
     let totalCount = Int(truncating: rois.shape[0])
-    var currentBatch:MPSRegionBatchInput?
-    var result = [MPSRegionBatchInput]()
     let stride = Int(truncating: rois.strides[0])
     let ratio = Double(featureMapSelectionFactor/sqrt(imageSize.width*imageSize.height))
     
-    var mapLevels = [Int]()
+    var results = [ROIAlignInputItem]()
     
     for i in 0 ..< totalCount {
         
@@ -227,38 +310,119 @@ func roisToMPSRegionBatches(rois:MLMultiArray,
         let regionIsValid = !featureMapLevelFloat.isNaN && !featureMapLevelFloat.isInfinite
         
         let featureMapLevel = (!regionIsValid) ? 2 : min(5,max(2,Int(round(featureMapLevelFloat))))
-        mapLevels.append(featureMapLevel)
-        
         let featureMapIndex = featureMapLevel-2
 
         let region = MPSRegion(origin: MPSOrigin(x: x1, y: y1, z: 0), size: MPSSize(width: width,
                                                                                     height: height,
                                                                                     depth: 1.0))
         
-        if let existingBatch = currentBatch {
-            if(existingBatch.regions.count == maxBatchSize ||
-                featureMapIndex != existingBatch.featureMapIndex || !regionIsValid) {
-                //Close the batch
-                result.append(existingBatch)
-                if(regionIsValid) {
-                    //Only open a new batch if the new region is valid
-                    currentBatch = MPSRegionBatchInput(offset: i, featureMapIndex: featureMapIndex, regions: [region])
-                } else {
-                    currentBatch = nil
-                }
+        let content:ROIAlignInputItem.Content = {
+            () -> ROIAlignInputItem.Content in
+            if(regionIsValid){
+                return .region(featureMapIndex: featureMapIndex, region: region)
             }
-            else {
-                currentBatch!.regions.append(region)
-            }
-        }
-        else {
-            currentBatch = MPSRegionBatchInput(offset: i, featureMapIndex: featureMapIndex, regions: [region])
+            return .padding
+        }()
+        
+        let item = ROIAlignInputItem(offset: i, content: content)
+        results.append(item)
+    }
+
+    return results
+}
+
+func groupInputItemsByContent(items:[ROIAlignInputItem]) -> [ROIAlignInputGroup] {
+    
+    var results = [ROIAlignInputGroup]()
+    
+    var offset:Int = 0
+    var currentPaddingCount:Int?
+    var currentFeatureMapIndex:Int?
+    var currentRegions:[MPSRegion]?
+    
+    let closeRegionsGroupIfNecessary = {
+        
+        () -> Void in
+        
+        if let mapIndex = currentFeatureMapIndex, let regions = currentRegions {
+            let group = ROIAlignInputGroup(offset: offset, content: ROIAlignInputGroup.Content.regions(featureMapIndex: mapIndex, regions: regions))
+            results.append(group)
+            currentFeatureMapIndex = nil
+            currentRegions = nil
+            offset += group.size
         }
     }
     
-    if let currentBatch = currentBatch {
-        result.append(currentBatch)
+    let closePaddingGroupIfNecessary = {
+        
+        () -> Void in
+        if let paddingCount = currentPaddingCount {
+            let group = ROIAlignInputGroup(offset: offset, content: ROIAlignInputGroup.Content.padding(count: paddingCount))
+            results.append(group)
+            currentPaddingCount = nil
+            offset += group.size
+        }
     }
     
-    return result
+    for item in items {
+        
+        switch(item.content)
+        {
+        case .padding:
+            
+            closeRegionsGroupIfNecessary()
+            
+            if let paddingCount = currentPaddingCount {
+                currentPaddingCount = paddingCount + 1
+            } else {
+                currentPaddingCount = 1
+            }
+            
+        case .region(featureMapIndex: let mapIndex, region: let region):
+            
+            closePaddingGroupIfNecessary()
+            
+            if let currentFeatureMapIndex = currentFeatureMapIndex, currentFeatureMapIndex == mapIndex  {
+                currentRegions?.append(region)
+            } else {
+                closeRegionsGroupIfNecessary()
+                currentFeatureMapIndex = mapIndex
+                currentRegions = [region]
+            }
+            
+        }
+        
+    }
+    
+    return results
+}
+
+func batchInputGroups(groups:[ROIAlignInputGroup], maxComputeBatchSize:Int) -> [ROIAlignInputBatch] {
+    
+    var batches = [ROIAlignInputBatch]()
+    
+    var groupsInBatch = [ROIAlignInputGroup]()
+    var currentComputeSize:Int = 0
+    
+    for group in groups {
+        
+        let nextComputeSize = currentComputeSize + group.computeSize
+        
+        if(nextComputeSize <= maxComputeBatchSize) {
+            groupsInBatch.append(group)
+            currentComputeSize = nextComputeSize
+        } else {
+            batches.append(ROIAlignInputBatch(groups: groupsInBatch))
+            groupsInBatch = [group]
+            currentComputeSize = group.computeSize
+        }
+        
+    }
+    
+    if(!groupsInBatch.isEmpty) {
+        batches.append(ROIAlignInputBatch(groups: groupsInBatch))
+    }
+    
+    return batches
+    
 }

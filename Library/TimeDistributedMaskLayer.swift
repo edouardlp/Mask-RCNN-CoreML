@@ -37,8 +37,10 @@ import Accelerate
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
-        assert(inputs[0].dataType == MLMultiArrayDataType.float32)
+        let log = OSLog(subsystem: "TimeDistributedMaskLayer", category: OSLog.Category.pointsOfInterest)
+        os_signpost(OSSignpostType.begin, log: log, name: "TimeDistributedMask-Eval")
         
+        assert(inputs[0].dataType == MLMultiArrayDataType.float32)
         let detections = inputs[1]
         let detectionCount = Int(truncating: detections.shape[0])
         let detectionsStride = Int(truncating: detections.strides[0])
@@ -89,8 +91,8 @@ import Accelerate
         let resultCount = batchOut.count
         let paddingCount = max(0,detectionCount-resultCount)*outputStride
         output.padTailWithZeros(startIndex: resultCount*outputStride, count: paddingCount)
+        os_signpost(OSSignpostType.end, log: log, name: "TimeDistributedMask-Eval")
     }
-    
 }
 
 class MultiArrayBatchProvider : MLBatchProvider

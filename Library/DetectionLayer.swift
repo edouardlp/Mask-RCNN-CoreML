@@ -106,6 +106,8 @@ The classIds are the argmax of each rows in the class probability input.
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
         
+        let log = OSLog(subsystem: "DetectionLayer", category: OSLog.Category.pointsOfInterest)
+        os_signpost(OSSignpostType.begin, log: log, name: "Detection-Eval")
         
         //Regions of interest. Shape : (#regions,4)
         //(y1,x1,y2,x2)
@@ -235,6 +237,8 @@ The classIds are the argmax of each rows in the class probability input.
         let paddingCount = max(0,maxDetections-detectionsCount)*outputElementStride
         
         output.padTailWithZeros(startIndex: detectionsCount*outputElementStride, count: paddingCount)
+        
+        os_signpost(OSSignpostType.end, log: log, name: "Detection-Eval")
     }
 
 }

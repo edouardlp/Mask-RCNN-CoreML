@@ -24,12 +24,11 @@ def build_models(config_path,
     input_width = 1024
     input_height = 1024
     input_image_shape = (input_width,input_height)
-    num_classes = 81
+    num_classes = 1+80
     pre_nms_max_proposals = 6000
     max_proposals = 1000
     max_detections = 100
     pyramid_top_down_size = 256
-    anchor_stride = 1
     proposal_nms_threshold = 0.7
     detection_min_confidence = 0.7
     detection_nms_threshold = 0.3

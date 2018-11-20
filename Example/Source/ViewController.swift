@@ -9,6 +9,7 @@
 import UIKit
 import CoreML
 import Vision
+import os.signpost
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     
@@ -104,7 +105,12 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
         DispatchQueue.global(qos: .userInitiated).async {
             let handler = VNImageRequestHandler(ciImage: ciImage, orientation: orientation)
             do {
-                try handler.perform([self.maskRCNNRequest])
+                
+                let request = self.maskRCNNRequest
+                let log = OSLog(subsystem: "Mask-RCNN", category: OSLog.Category.pointsOfInterest)
+                os_signpost(OSSignpostType.begin, log: log, name: "Mask-RCNN-Eval")
+                try handler.perform([request])
+                os_signpost(OSSignpostType.end, log: log, name: "Mask-RCNN-Eval")
             } catch {
                 DispatchQueue.main.async {
                     print("Failed to perform Mask-RCNN.\n\(error.localizedDescription)")
