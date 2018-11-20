@@ -38,6 +38,7 @@ import os.signpost
  */
 @objc(PyramidROIAlignLayer) class PyramidROIAlignLayer: NSObject, MLCustomLayer {
     
+    let device = MTLCreateSystemDefaultDevice()!
     let maxBatchSize = 64
     let maxCommandBufferCount = 3
     var poolSize:Int = 7
@@ -81,16 +82,14 @@ import os.signpost
         let log = OSLog(subsystem: "PyramidROIAlign", category: OSLog.Category.pointsOfInterest)
         os_signpost(OSSignpostType.begin, log: log, name: "PyramidROIAlign-Eval")
         
-        let device = MTLCreateSystemDefaultDevice()!
         let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: self.maxCommandBufferCount)!
-
+        
         let rois = inputs[0]
-        let featureMaps = inputs[1..<inputs.count]
+        let featureMaps = Array(inputs[1..<inputs.count])
         
         let featureMapShape = featureMaps.first!.shape
         
         let channels = Int(truncating: featureMapShape[2])
-        let floatSize = MemoryLayout<Float>.size
         
         let outputWidth = self.poolSize
         let outputHeight = self.poolSize
@@ -104,14 +103,19 @@ import os.signpost
             return
         }
         
+        os_signpost(OSSignpostType.begin, log: log, name: "PyramidROIAlign-CreateInputRessources")
+        
         let featureMapImages = featureMaps.map {
             (featureMap) -> MPSImage in
             let inputWidth = Int(truncating: featureMap.shape[4])
             let inputHeight = Int(truncating: featureMap.shape[3])
             let image = MPSImage(device: device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: inputWidth, height: inputHeight, featureChannels: channels, numberOfImages:1, usage:MTLTextureUsage.shaderRead))
+            //This is the main bottleneck. Is there a more efficient approach?
             image.writeBytes(featureMap.dataPointer, dataLayout: MPSDataLayout.featureChannelsxHeightxWidth, imageIndex: 0)
             return image
         }
+        
+        os_signpost(OSSignpostType.end, log: log, name: "PyramidROIAlign-CreateInputRessources")
         
         let outputPointer = outputs[0].dataPointer
         
@@ -119,24 +123,33 @@ import os.signpost
         let metalRegion = MTLRegion(origin: MTLOrigin(x: 0, y: 0, z: 0),
                                     size: MTLSize(width: outputWidth, height: outputHeight, depth: 1))
         
+        
+        os_signpost(OSSignpostType.begin, log: log, name: "PyramidROIAlign-CreateOutputRessources")
+        
         //We write to the same images to improve performance
         var outputImagesByBuffers = Array<Array<MPSImage>>()
         for _ in 0 ..< maxCommandBufferCount {
             var outputImages = Array<MPSImage>()
             for _ in 0 ..< self.maxBatchSize {
-                outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels)))
+                outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels, numberOfImages:1, usage:[MTLTextureUsage.shaderWrite])))
             }
             outputImagesByBuffers.append(outputImages)
         }
         
+        os_signpost(OSSignpostType.end, log: log, name: "PyramidROIAlign-CreateOutputRessources")
+        
+        let commandBufferEncodingSemaphore = DispatchSemaphore(value: maxCommandBufferCount)
         let maxBatchSize = self.maxBatchSize
-        let semaphore = DispatchSemaphore(value: maxCommandBufferCount)
 
+        let dispatchGroup = DispatchGroup()
+        
         for (i,batch) in batches.enumerated() {
+
+            dispatchGroup.enter()
+            
+            commandBufferEncodingSemaphore.wait()
             
             let outputImagesIndex = i % maxCommandBufferCount
-            
-            semaphore.wait()
             
             performBatch(commandQueue: commandQueue,
                          featureMaps: featureMapImages,
@@ -156,11 +169,12 @@ import os.signpost
                                        channels: channels,
                                        toPointer: outputPointer)
                             
-                            semaphore.signal()
-                            
+                            commandBufferEncodingSemaphore.signal()
+                            dispatchGroup.leave()
             }
-
+            
         }
+        dispatchGroup.wait()
         os_signpost(OSSignpostType.end, log: log, name: "PyramidROIAlign-Eval")
     }
     
@@ -174,13 +188,13 @@ func performBatch(commandQueue:MTLCommandQueue,
                   batch:ROIAlignInputBatch,
                   outputImages:[MPSImage],
                   completionHandler:@escaping (_ items:[ROIAlignOutputItem])->Void){
+
     
-    let buffer = commandQueue.makeCommandBufferWithUnretainedReferences()!
+    let buffer = batch.computeSize > 0 ? commandQueue.makeCommandBufferWithUnretainedReferences() : nil
     let channels = channelsSize
     
     var outputItems = [ROIAlignOutputItem]()
     var computeOffset:Int = 0
-    
     for group in batch.groups {
         switch(group.content){
         case .regions(featureMapIndex: let featureMapIndex, regions: let regions):
@@ -201,7 +215,7 @@ func performBatch(commandQueue:MTLCommandQueue,
                 for slice in 0 ..< channels/4 {
                     kernel.sourceFeatureChannelOffset = slice*4
                     kernel.destinationFeatureChannelOffset = slice*4
-                    kernel.encode(commandBuffer: buffer,
+                    kernel.encode(commandBuffer: buffer!,
                                   sourceImage: inputImage,
                                   destinationImage: outputImage)
                 }
@@ -213,10 +227,15 @@ func performBatch(commandQueue:MTLCommandQueue,
         }
     }
     
-    buffer.addCompletedHandler { _ in
+    if(batch.computeSize == 0){
+        completionHandler(outputItems)
+        return
+    }
+    
+    buffer!.addCompletedHandler { _ in
         completionHandler(outputItems)
     }
-    buffer.commit()
+    buffer!.commit()
 }
 
 func copyOutput(items:[ROIAlignOutputItem],
