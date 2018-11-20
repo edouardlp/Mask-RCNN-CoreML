@@ -38,7 +38,8 @@ import os.signpost
  */
 @objc(PyramidROIAlignLayer) class PyramidROIAlignLayer: NSObject, MLCustomLayer {
     
-    let maxBatchSize = 32//TODO: compute based on metal buffer sizes
+    let maxBatchSize = 64
+    let maxCommandBufferCount = 3
     var poolSize:Int = 7
     var imageSize = CGSize(width: 1024, height: 1024)
     
@@ -81,7 +82,7 @@ import os.signpost
         os_signpost(OSSignpostType.begin, log: log, name: "PyramidROIAlign-Eval")
         
         let device = MTLCreateSystemDefaultDevice()!
-        let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: 1)!
+        let commandQueue:MTLCommandQueue = device.makeCommandQueue(maxCommandBufferCount: self.maxCommandBufferCount)!
 
         let rois = inputs[0]
         let featureMaps = inputs[1..<inputs.count]
@@ -119,41 +120,44 @@ import os.signpost
                                     size: MTLSize(width: outputWidth, height: outputHeight, depth: 1))
         
         //We write to the same images to improve performance
-        var outputImages = Array<MPSImage>()
-        for _ in 0 ..< self.maxBatchSize {
-            outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels)))
+        var outputImagesByBuffers = Array<Array<MPSImage>>()
+        for _ in 0 ..< maxCommandBufferCount {
+            var outputImages = Array<MPSImage>()
+            for _ in 0 ..< self.maxBatchSize {
+                outputImages.append(MPSImage(device: commandQueue.device, imageDescriptor: MPSImageDescriptor(channelFormat: MPSImageFeatureChannelFormat.float32, width: outputWidth, height: outputHeight, featureChannels: channels)))
+            }
+            outputImagesByBuffers.append(outputImages)
         }
         
-        var paddingBuffer = Array<Float>(repeating: 0.0, count: self.maxBatchSize)
+        let maxBatchSize = self.maxBatchSize
+        let semaphore = DispatchSemaphore(value: maxCommandBufferCount)
 
-        for batch in batches {
+        for (i,batch) in batches.enumerated() {
             
-            let batchOutputs = performBatch(commandQueue: commandQueue,
-                                            featureMaps: featureMapImages,
-                                            channelsSize:channels,
-                                            outputWidth: outputWidth,
-                                            outputHeight: outputHeight,
-                                            batch: batch,
-                                            outputImages:outputImages)
+            let outputImagesIndex = i % maxCommandBufferCount
             
-            for output in batchOutputs {
-                
-                let offset = output.offset * resultStride
-                let pointer = outputPointer.advanced(by:offset*MemoryLayout<Float>.size)
-                switch(output.content){
-                case .image(image: let image):
-                    image.readBytes(pointer,
-                                    dataLayout: MPSDataLayout.featureChannelsxHeightxWidth,
-                                    bytesPerRow: outputWidth*floatSize,
-                                    region: metalRegion, featureChannelInfo: MPSImageReadWriteParams(featureChannelOffset: 0, numberOfFeatureChannelsToReadWrite: channels), imageIndex: 0)
-                case .padding(count: let paddingCount):
-                    if(paddingCount > paddingBuffer.count){
-                        paddingBuffer = Array<Float>(repeating: 0.0, count: paddingCount)
-                    }
-                    
-                    let bufferPointer = UnsafeMutableRawPointer(&paddingBuffer)
-                    pointer.copyMemory(from: bufferPointer, byteCount: MemoryLayout<Float>.size*paddingCount)
-                }
+            semaphore.wait()
+            
+            performBatch(commandQueue: commandQueue,
+                         featureMaps: featureMapImages,
+                         channelsSize:channels,
+                         outputWidth: outputWidth,
+                         outputHeight: outputHeight,
+                         batch: batch,
+                         outputImages:outputImagesByBuffers[outputImagesIndex]){
+                            outputItems in
+                            
+                            copyOutput(items: outputItems,
+                                       metalRegion: metalRegion,
+                                       maxBatchSize: maxBatchSize,
+                                       resultStride: resultStride,
+                                       outputWidth: outputWidth,
+                                       outputHeight: outputHeight,
+                                       channels: channels,
+                                       toPointer: outputPointer)
+                            
+                            semaphore.signal()
+                            
             }
 
         }
@@ -168,14 +172,15 @@ func performBatch(commandQueue:MTLCommandQueue,
                   outputWidth:Int,
                   outputHeight:Int,
                   batch:ROIAlignInputBatch,
-                  outputImages:[MPSImage]) -> [ROIAlignOutputItem] {
+                  outputImages:[MPSImage],
+                  completionHandler:@escaping (_ items:[ROIAlignOutputItem])->Void){
     
     let buffer = commandQueue.makeCommandBufferWithUnretainedReferences()!
     let channels = channelsSize
     
     var outputItems = [ROIAlignOutputItem]()
     var computeOffset:Int = 0
-
+    
     for group in batch.groups {
         switch(group.content){
         case .regions(featureMapIndex: let featureMapIndex, regions: let regions):
@@ -208,10 +213,41 @@ func performBatch(commandQueue:MTLCommandQueue,
         }
     }
     
-    
+    buffer.addCompletedHandler { _ in
+        completionHandler(outputItems)
+    }
     buffer.commit()
-    buffer.waitUntilCompleted()
-    return outputItems
+}
+
+func copyOutput(items:[ROIAlignOutputItem],
+                metalRegion:MTLRegion,
+                maxBatchSize:Int,
+                resultStride:Int,
+                outputWidth:Int,
+                outputHeight:Int,
+                channels:Int,
+                toPointer outputPointer:UnsafeMutableRawPointer) {
+    
+    var paddingBuffer = Array<Float>(repeating: 0.0, count: maxBatchSize)
+    
+    for output in items {
+        let offset = output.offset * resultStride
+        let pointer = outputPointer.advanced(by:offset*MemoryLayout<Float>.size)
+        switch(output.content){
+        case .image(image: let image):
+            image.readBytes(pointer,
+                            dataLayout: MPSDataLayout.featureChannelsxHeightxWidth,
+                            bytesPerRow: outputWidth*MemoryLayout<Float>.size,
+                            region: metalRegion, featureChannelInfo: MPSImageReadWriteParams(featureChannelOffset: 0, numberOfFeatureChannelsToReadWrite: channels), imageIndex: 0)
+        case .padding(count: let paddingCount):
+            if(paddingCount > paddingBuffer.count){
+                paddingBuffer = Array<Float>(repeating: 0.0, count: paddingCount)
+            }
+            
+            let bufferPointer = UnsafeMutableRawPointer(&paddingBuffer)
+            pointer.copyMemory(from: bufferPointer, byteCount: MemoryLayout<Float>.size*paddingCount)
+        }
+    }
 }
 
 struct ROIAlignInputBatch {

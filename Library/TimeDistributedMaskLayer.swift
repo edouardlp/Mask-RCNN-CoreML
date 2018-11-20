@@ -48,9 +48,6 @@ import Accelerate
         let model = Mask().model
         let predictionOptions = MLPredictionOptions()
         
-        //Temporary, otherwise we seem to consume all system memory
-        predictionOptions.usesCPUOnly = true
-        
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, featureNames: self.featureNames)
         let batchOut = try model.predictions(from: batchIn, options: predictionOptions)
         let resultFeatureNames = ["masks"]
