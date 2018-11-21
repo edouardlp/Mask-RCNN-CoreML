@@ -82,18 +82,19 @@ def build_models(config_path,
                                               num_classes=num_classes,
                                               max_regions=max_proposals,
                                               fc_layers_size=fc_layers_size,
-                                              pyramid_top_down_size=pyramid_top_down_size)
+                                              pyramid_top_down_size=pyramid_top_down_size,
+                                              weights_path=weights_path)
 
     #rois_class_probs: Probability of each class being contained within the roi
     #rois_deltas: Bounding box refinements to apply to each roi to better enclose its object
-    rois_class_probs, rois_deltas = fpn_classifier_graph.build()
+    fpn_classifier_model, classification = fpn_classifier_graph.build()
 
 
     detections = DetectionLayer(name="mrcnn_detection",
                                 max_detections=max_detections,
                                 bounding_box_std_dev=bounding_box_std_dev,
                                 detection_min_confidence=detection_min_confidence,
-                                detection_nms_threshold=detection_nms_threshold)([rois, rois_class_probs, rois_deltas])
+                                detection_nms_threshold=detection_nms_threshold)([rois, classification])
 
     #TODO: try to remove this line
     detections = keras.layers.Reshape((max_detections,6))(detections)
@@ -114,9 +115,10 @@ def build_models(config_path,
                                      name='mask_rcnn_model')
 
     mask_rcnn_model.load_weights(weights_path, by_name=True)
-    return mask_rcnn_model, fpn_mask_model, proposal_layer.anchors
+    return mask_rcnn_model, fpn_classifier_model, fpn_mask_model, proposal_layer.anchors
 
 def export_models(mask_rcnn_model,
+                  classifier_model,
                   mask_model,
                   export_main_path,
                   export_mask_path,
@@ -146,6 +148,11 @@ def export_models(mask_rcnn_model,
         params.description = "Extracts feature maps based on the regions of interest."
         return params
 
+    def convert_time_distributed_classifier(layer):
+        params = NeuralNetwork_pb2.CustomLayerParams()
+        params.className = "TimeDistributedClassifierLayer"
+        return params
+
     def convert_time_distributed(layer):
         params = NeuralNetwork_pb2.CustomLayerParams()
         params.className = "TimeDistributedMaskLayer"
@@ -171,6 +178,7 @@ def export_models(mask_rcnn_model,
                                                            add_custom_layers=True,
                                                            custom_conversion_functions={"ProposalLayer": convert_proposal,
                                                                                         "PyramidROIAlign": convert_pyramid,
+                                                                                        "TimeDistributedClassifier" : convert_time_distributed_classifier,
                                                                                         "TimeDistributedMask": convert_time_distributed,
                                                                                         "DetectionLayer": convert_detection})
 
@@ -196,6 +204,17 @@ def export_models(mask_rcnn_model,
     half_mask_spec = half_mask_model.get_spec()
     coremltools.utils.save_spec(half_mask_spec, export_mask_path)
 
+    classifier_model_coreml = coremltools.converters.keras.convert(classifier_model,
+                                                             input_names=["feature_map"],
+                                                             output_names=["probabilities", "bounding_boxes"])
+    classifier_model_coreml.author = author
+    classifier_model_coreml.license = license
+    classifier_model_coreml.short_description = ""
+    classifier_model_coreml.input_description["feature_map"] = "Fully processed feature map, ready for classification."
+    half_classifier_model = coremltools.models.utils.convert_neural_network_weights_to_fp16(classifier_model_coreml)
+    half_classifier_spec = half_classifier_model.get_spec()
+    coremltools.utils.save_spec(half_classifier_spec, "Data/Classifier.mlmodel")
+
 
 def export(config_path,
            weights_path,
@@ -204,6 +223,6 @@ def export(config_path,
            export_anchors_path,
            params):
 
-    mask_rcnn_model, mask_model,anchors = build_models(config_path,weights_path)
-    export_models(mask_rcnn_model, mask_model, export_main_path, export_mask_path, export_anchors_path)
+    mask_rcnn_model, classifier_model, mask_model,anchors = build_models(config_path,weights_path)
+    export_models(mask_rcnn_model, classifier_model, mask_model, export_main_path, export_mask_path, export_anchors_path)
     anchors.tofile(export_anchors_path)

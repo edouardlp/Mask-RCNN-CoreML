@@ -33,12 +33,11 @@ def refine_detections_graph(rois,
         coordinates are normalized.
     """
     # Class IDs per ROI
-    class_ids = tf.argmax(probs, axis=1, output_type=tf.int32)
+    class_ids = tf.convert_to_tensor(np.zeros((1000)),dtype=np.int32)#index 4
+    deltas_specific = tf.convert_to_tensor(np.zeros((1000,4)),dtype=np.float32) #first 4
     # Class probability of the top class of each ROI
-    indices = tf.stack([tf.range(probs.shape[0]), class_ids], axis=1)
-    class_scores = tf.gather_nd(probs, indices)
+    class_scores = tf.convert_to_tensor(np.zeros((1000)),dtype=np.float32) #index 5
     # Class-specific bounding box deltas
-    deltas_specific = tf.gather_nd(deltas, indices)
     # Apply bounding box deltas
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
     refined_rois = apply_box_deltas_graph(
@@ -141,8 +140,8 @@ class DetectionLayer(keras.engine.Layer):
     def call(self, inputs):
         rois = inputs[0]
         mrcnn_class = inputs[1]
-        mrcnn_bbox = inputs[2]
-        mrcnn_bbox = keras.layers.Permute((3, 2, 1))(mrcnn_bbox)
+        #mrcnn_bbox = inputs[2]
+        #mrcnn_bbox = keras.layers.Permute((3, 2, 1))(mrcnn_bbox)
         # Get windows of images in normalized coordinates. Windows are the area
         # in the image that excludes the padding.
         # Use the shape of the first image in the batch to normalize the window
@@ -159,7 +158,7 @@ class DetectionLayer(keras.engine.Layer):
         #window = tf.reshape(window, (None,4))
         # Run detection refinement graph on each item in the batch
         detections_batch = batch_slice(
-            [rois, mrcnn_class, mrcnn_bbox, window],
+            [rois, mrcnn_class, mrcnn_class, window],
             lambda x, y, w, z: refine_detections_graph(x, y, w, z, np.array(self.bounding_box_std_dev), self.detection_min_confidence, self.max_detections, self.detection_nms_threshold),
             self.images_per_gpu)
 

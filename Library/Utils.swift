@@ -12,11 +12,14 @@ import CoreML
 
 extension UnsafePointer where Pointee == Float {
     
-    func stridedSlice(begin:Int, count:Int, stride:Int) -> [Float] {
+    func stridedSlice(begin:Int, count:Int, stride:Int, length:Int = 1) -> [Float] {
         let dataPointer = self.advanced(by: begin)
-        var result = Array<Float>(repeating:0.0, count: count)
+        let size = count * length
+        var result = Array<Float>(repeating:0.0, count: size)
         let resultPointer = UnsafeMutablePointer<Float>(&result)
-        cblas_scopy(Int32(count), dataPointer, Int32(stride), resultPointer, 1)
+        for l in 0 ..< length {
+            cblas_scopy(Int32(count), dataPointer.advanced(by: l), Int32(stride), resultPointer.advanced(by: l), Int32(length))
+        }
         return result
     }
     
@@ -175,6 +178,7 @@ func elementWiseMultiply(matrixPointer:UnsafeMutablePointer<Float>,
 
 //nonMaxSupression Adapted from https://github.com/hollance/CoreMLHelpers
 
+//This is also a bottle neck, could we find a way to vectorize so parts of it? Also, is it worth to compute these without having to transform the floats into CG structures?
 func nonMaxSupression(boxes:[Float],
                       indices:[Int],
                       iouThreshold:Float,

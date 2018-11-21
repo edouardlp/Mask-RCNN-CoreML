@@ -100,6 +100,7 @@ import os.signpost
         let batches = batchInputGroups(groups: groups, maxComputeBatchSize: self.maxBatchSize)
         
         if(batches.isEmpty) {
+            os_signpost(OSSignpostType.end, log: log, name: "PyramidROIAlign-Eval")
             return
         }
         

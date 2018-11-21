@@ -25,8 +25,7 @@ import Accelerate
  The layer takes three inputs :
  
  - Regions of interest. Shape : (#regions,4)
- - Class probabilities. Shape : (#regions,#classes)
- - Bounding box deltas to refine the regions of interests shape. Shape : (#regions,4)
+ - TODO
  
  The regions of interest are layed out as follows : (y1,x1,y2,x2).
  
@@ -105,7 +104,7 @@ The classIds are the argmax of each rows in the class probability input.
     }
     
     func evaluate(inputs: [MLMultiArray], outputs: [MLMultiArray]) throws {
-        
+
         let log = OSLog(subsystem: "DetectionLayer", category: OSLog.Category.pointsOfInterest)
         os_signpost(OSSignpostType.begin, log: log, name: "Detection-Eval")
         
@@ -114,24 +113,18 @@ The classIds are the argmax of each rows in the class probability input.
         let rois = inputs[0]
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
 
-        //Class probabilities. Shape : (#regions,#classes)
-        //Index 0 of each region is the background class
-        let probabilities = inputs[1]
+        //TODO: doc
+        //dy,dx,log(dh),log(dw),classId,score)
+        let classifications = inputs[1]
         assert(inputs[1].dataType == MLMultiArrayDataType.float32)
-
-        //Bounding box deltas to refine the regions of interests shape. Shape : (#regions,4)
-        //(dy,dx,log(dh),log(dw))
-        let boundingBoxDeltas = inputs[2]
-        assert(inputs[2].dataType == MLMultiArrayDataType.float32)
-
-        let inputRegionsCount = UInt(truncating:rois.shape[0])
-        let classesCount = UInt(truncating:probabilities.shape[2])
+        
+        let inputRegionsCount = Int(truncating:rois.shape[0])
         let maxDetections = self.maxDetections
         
-        //Retrieve the maximum value in each row (score), as well as the column index (classId)
-        var (scores,classIds) = maximumValuesWithIndices2d(values: probabilities.floatDataPointer(),
-                                                           rows: inputRegionsCount,
-                                                           columns: classesCount)
+        var boundingBoxDeltas = classifications.floatDataPointer().stridedSlice(begin: 0, count: inputRegionsCount, stride: 6, length: 4)
+        
+        var classIds = classifications.floatDataPointer().stridedSlice(begin: 4, count: inputRegionsCount, stride: 6)
+        var scores = classifications.floatDataPointer().stridedSlice(begin: 5, count: inputRegionsCount, stride: 6)
 
         //Start from all indices of rois and apply threshold
         var filteredIndices = indicesOfRoisWithHighScores(scores: UnsafeMutablePointer<Float>(&scores),
@@ -154,12 +147,10 @@ The classIds are the argmax of each rows in the class probability input.
         let filteredScores = UnsafeMutablePointer<Float>(&scores).indexed(indices:filteredIndices)
         
         //Gather classes based on filtered indices
-        var floatClass = classIds.toFloat()
-        let filteredClass = UnsafeMutablePointer<Float>(&floatClass).indexed(indices:filteredIndices)
+        let filteredClass = UnsafeMutablePointer<Float>(&classIds).indexed(indices:filteredIndices)
      
         //Gather deltas based on filtered indices
-        let boundingBoxDeltaIndices = deltasIndices(indices: filteredIndices, classIds: classIds, numberOfClasses: Int(classesCount))
-        var filteredDeltas = boundingBoxDeltas.floatDataPointer().indexed(indices: boundingBoxDeltaIndices)
+        var filteredDeltas =  UnsafeMutablePointer<Float>(&boundingBoxDeltas).indexed(indices: boxIndices)
         
         //Multiply bounding box deltas by std dev
         var stdDev = self.boundingBoxRefinementStandardDeviation
@@ -243,31 +234,6 @@ The classIds are the argmax of each rows in the class probability input.
 
 }
 
-func maximumValuesWithIndices2d(values:UnsafePointer<Float>,
-                                rows:UInt,
-                                columns:UInt) -> ([Float],[UInt]) {
-    var resultValues = Array<Float>(repeating: 0.0, count: Int(rows))
-    var resultValuesPointer = UnsafeMutablePointer<Float>(&resultValues)
-    var resultIndices = Array<UInt>(repeating: 0, count: Int(rows))
-    var resultIndicesPointer = UnsafeMutablePointer<UInt>(&resultIndices)
-    
-    let columnsInt = Int(columns)
-    var valuesMovingPointer = values
-    
-    for _ in 0 ..< rows {
-        vDSP_maxvi(valuesMovingPointer,
-                   1,
-                   resultValuesPointer,
-                   resultIndicesPointer,
-                   columns)
-        resultValuesPointer = resultValuesPointer.advanced(by: 1)
-        resultIndicesPointer = resultIndicesPointer.advanced(by: 1)
-        valuesMovingPointer = valuesMovingPointer.advanced(by: columnsInt)
-    }
-
-    return (resultValues,resultIndices)
-}
-
 func indicesOfRoisWithHighScores(scores:UnsafeMutablePointer<Float>,
                                  threshold:Float,
                                  count:UInt) -> [Float] {
@@ -306,24 +272,4 @@ func indicesOfRoisWithHighScores(scores:UnsafeMutablePointer<Float>,
                 count)
     temporaryBuffer.deallocate()
     return indices
-}
-
-func deltasIndices(indices:[Float],
-                   classIds:[UInt],
-                   numberOfClasses:Int) -> [Float] {
-    
-    let boxLength = 4
-    let indexStride = Float(numberOfClasses*boxLength)
-    var result = Array<Float>()
-    
-    //for each index, we will produce 4 result indices
-    for (i,index) in indices.enumerated() {
-        let classId = Float(classIds[i])
-        let deltaIndex = index*indexStride+classId
-        for j in 0 ..< boxLength {
-            result.append(deltaIndex+Float(numberOfClasses*j))
-        }
-    }
-    
-    return result
 }

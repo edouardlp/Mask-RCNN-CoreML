@@ -119,13 +119,22 @@ import Accelerate
         let totalNumberOfElements = Int(truncating:classProbabilities.shape[0])
         let numberOfElementsToProcess = min(totalNumberOfElements, preNonMaxLimit)
         
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-StridedSlice")
         //We extract only the object probabilities, which are always at the odd indices of the array
         let objectProbabilities = classProbabilities.floatDataPointer().stridedSlice(begin: 1, count: totalNumberOfElements, stride: 2)
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-StridedSlice")
+
         
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-Sorting")
         //We sort the probabilities in descending order and get the index so as to reorder the other arrays.
         //We also clip to the limit.
+        //This is the slowest operation of the layer, taking avg of 45 ms on the ResNet101 backbone.
+        //Would this be solved with a scatter/gather distributed merge sort? probably not
         let sortedProbabilityIndices = objectProbabilities.sortedIndices(ascending: false)[0 ..< numberOfElementsToProcess].toFloat()
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-Sorting")
         
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-Gathering")
+
         //We broadcast the probability indices so that they index the boxes (anchor deltas and anchors)
         let boxElementLength = 4
         let boxIndices = broadcastedIndices(indices: sortedProbabilityIndices, toElementLength: boxElementLength)
@@ -139,6 +148,9 @@ import Accelerate
             return data.indexed(indices: boxIndices)
         }
         
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-Gathering")
+
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-Compute")
         //For each element of deltas, multiply by stdev
         
         var stdDev = self.boundingBoxRefinementStandardDeviation
@@ -149,16 +161,20 @@ import Accelerate
         let anchorsReference = sortedAnchors.boxReference()
         anchorsReference.applyBoxDeltas(sortedDeltas)
         anchorsReference.clip()
-        
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-Compute")
+
         //We apply Non Max Supression to the result boxes
-        
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-NMS")
+
         let resultIndices = nonMaxSupression(boxes: sortedAnchors,
                                              indices: Array(0 ..< sortedAnchors.count),
                                              iouThreshold: self.nmsIOUThreshold,
                                              max: maxProposals)
-        
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-NMS")
+
         //We copy the result boxes corresponding to the resultIndices to the output
-        
+        os_signpost(OSSignpostType.begin, log: log, name: "Proposal-Copy")
+
         let output = outputs[0]
         let outputElementStride = Int(truncating: output.strides[0])
         
@@ -167,7 +183,8 @@ import Accelerate
                 output[i*outputElementStride+j] = sortedAnchors[resultIndex*4+j] as NSNumber
             }
         }
-        
+        os_signpost(OSSignpostType.end, log: log, name: "Proposal-Copy")
+
         //Zero-pad the rest since CoreML does not erase the memory between evaluations
 
         let proposalCount = resultIndices.count
