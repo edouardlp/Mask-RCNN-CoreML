@@ -95,7 +95,7 @@ import os.signpost
         let outputHeight = self.poolSize
         
         let items = roisToInputItems(rois: rois, featureMapSelectionFactor: 224, imageSize: self.imageSize)
-        let groups = groupInputItemsByContent(items: items)
+        let groups = groupInputItemsByContent(items: items, maxComputeBatchSize: self.maxBatchSize)
         
         let batches = batchInputGroups(groups: groups, maxComputeBatchSize: self.maxBatchSize)
         
@@ -387,7 +387,7 @@ func roisToInputItems(rois:MLMultiArray,
     return results
 }
 
-func groupInputItemsByContent(items:[ROIAlignInputItem]) -> [ROIAlignInputGroup] {
+func groupInputItemsByContent(items:[ROIAlignInputItem], maxComputeBatchSize:Int) -> [ROIAlignInputGroup] {
     
     var results = [ROIAlignInputGroup]()
     
@@ -444,6 +444,10 @@ func groupInputItemsByContent(items:[ROIAlignInputItem]) -> [ROIAlignInputGroup]
                 closeRegionsGroupIfNecessary()
                 currentFeatureMapIndex = mapIndex
                 currentRegions = [region]
+            }
+            
+            if(currentRegions?.count == maxComputeBatchSize) {
+                closeRegionsGroupIfNecessary()
             }
             
         }
