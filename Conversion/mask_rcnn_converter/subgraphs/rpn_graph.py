@@ -29,6 +29,8 @@ class RPNGraph():
         x = keras.layers.Conv2D(2 * anchors_per_location, (1, 1), padding='valid',
                       activation='linear', name='rpn_class_raw')(shared)
 
+        #TODO: this appears to break CoreML on iPhone XS
+
         # Reshape to [batch, anchors, 2]
         rpn_class_logits = keras.layers.Reshape((-1, 2))(x)
 

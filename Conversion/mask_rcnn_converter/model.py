@@ -96,7 +96,7 @@ def build_models(config_path,
                                 detection_min_confidence=detection_min_confidence,
                                 detection_nms_threshold=detection_nms_threshold)([rois, classification])
 
-    #TODO: try to remove this line
+    #TODO: try to remove this line (CoreML crashes without it)
     detections = keras.layers.Reshape((max_detections,6))(detections)
 
     fpn_mask_graph = FPNMaskGraph(rois=detections,
@@ -111,7 +111,7 @@ def build_models(config_path,
     fpn_mask_model, masks = fpn_mask_graph.build()
 
     mask_rcnn_model = keras.models.Model(input_image,
-                                     [detections, masks],
+                                     [classification, masks],
                                      name='mask_rcnn_model')
 
     mask_rcnn_model.load_weights(weights_path, by_name=True)
@@ -215,6 +215,53 @@ def export_models(mask_rcnn_model,
     half_classifier_spec = half_classifier_model.get_spec()
     coremltools.utils.save_spec(half_classifier_spec, "Data/Classifier.mlmodel")
 
+def predict(config_path,
+            weights_path,
+            results_path,
+            images,
+            params):
+
+    predict = True
+
+    if predict:
+        mask_rcnn_model, _, _,_ = build_models(config_path,weights_path)
+        results = mask_rcnn_model.predict(images)
+        print(results[0])
+        np.save("detections.npy", results[0])
+        np.save("masks.npy", results[1])
+
+    detections = np.load("detections.npy")
+    masks = np.load("masks.npy")
+    print(detections)
+    #TODO: transform this to output compatible with coco
+    detections = build_detections(detections)
+
+    import json
+    with open('results.json', 'w') as outfile:
+        json.dump(detections, outfile)
+
+
+    print(detections)
+    print(masks.shape)
+
+def build_detections(arrays):
+    print(arrays.shape)
+    detections = []
+    for i in range(0,arrays.shape[0]):
+        for j in range(0,arrays.shape[1]):
+            detection = build_detection(arrays[i,j,:])
+            if detection:
+                detections.append(detection)
+    return detections
+
+
+def build_detection(array):
+    category_id = int(array[4])
+    if(category_id == 0):
+        return None
+    score = float(array[5])
+    bbox = array[0:4].tolist()
+    return { "category_id":category_id ,"score":score, "bbox":  bbox}
 
 def export(config_path,
            weights_path,

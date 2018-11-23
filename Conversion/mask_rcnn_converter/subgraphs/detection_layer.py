@@ -11,8 +11,7 @@ from .utils import norm_boxes_graph
 #input and output shapes.
 
 def refine_detections_graph(rois,
-                            probs,
-                            deltas,
+                            classifications,
                             window,
                             BBOX_STD_DEV,
                             DETECTION_MIN_CONFIDENCE,
@@ -33,10 +32,10 @@ def refine_detections_graph(rois,
         coordinates are normalized.
     """
     # Class IDs per ROI
-    class_ids = tf.convert_to_tensor(np.zeros((1000)),dtype=np.int32)#index 4
-    deltas_specific = tf.convert_to_tensor(np.zeros((1000,4)),dtype=np.float32) #first 4
+    class_ids = tf.to_int32(classifications[:,4])
+    deltas_specific = classifications[:,0:4]
     # Class probability of the top class of each ROI
-    class_scores = tf.convert_to_tensor(np.zeros((1000)),dtype=np.float32) #index 5
+    class_scores = classifications[:,5] #index 5
     # Class-specific bounding box deltas
     # Apply bounding box deltas
     # Shape: [boxes, (y1, x1, y2, x2)] in normalized coordinates
@@ -139,7 +138,7 @@ class DetectionLayer(keras.engine.Layer):
 
     def call(self, inputs):
         rois = inputs[0]
-        mrcnn_class = inputs[1]
+        classifications = inputs[1]
         #mrcnn_bbox = inputs[2]
         #mrcnn_bbox = keras.layers.Permute((3, 2, 1))(mrcnn_bbox)
         # Get windows of images in normalized coordinates. Windows are the area
@@ -158,8 +157,8 @@ class DetectionLayer(keras.engine.Layer):
         #window = tf.reshape(window, (None,4))
         # Run detection refinement graph on each item in the batch
         detections_batch = batch_slice(
-            [rois, mrcnn_class, mrcnn_class, window],
-            lambda x, y, w, z: refine_detections_graph(x, y, w, z, np.array(self.bounding_box_std_dev), self.detection_min_confidence, self.max_detections, self.detection_nms_threshold),
+            [rois, classifications, window],
+            lambda x, y, z: refine_detections_graph(x, y, z, np.array(self.bounding_box_std_dev), self.detection_min_confidence, self.max_detections, self.detection_nms_threshold),
             self.images_per_gpu)
 
         # Reshape output
@@ -170,6 +169,5 @@ class DetectionLayer(keras.engine.Layer):
             [self.batch_size, self.max_detections, 6])
         return detections
 
-
     def compute_output_shape(self, input_shape):
-        return (None, self.max_detections, 6)
+        return (None, 1, self.max_detections, 6)
