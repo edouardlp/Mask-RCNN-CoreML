@@ -7,13 +7,14 @@ from .pyramid_roi_align_layer import PyramidROIAlign
 #We use a custom layer to implement the time distributed layer in Swift
 class TimeDistributedClassifier(keras.layers.Layer):
 
-    def __init__(self, max_regions, pool_size, num_classes, pyramid_top_down_size, fc_layers_size, **kwargs):
+    def __init__(self, max_regions, pool_size, num_classes, pyramid_top_down_size, fc_layers_size, weights_path, **kwargs):
         super(TimeDistributedClassifier, self).__init__(**kwargs)
         self.max_regions = max_regions
         self.pool_size = pool_size
         self.num_classes = num_classes
         self.pyramid_top_down_size = pyramid_top_down_size
         self.fc_layers_size = fc_layers_size
+        self.weights_path = weights_path
 
     def _build_keras_inner_model(self):
 
@@ -24,8 +25,6 @@ class TimeDistributedClassifier(keras.layers.Layer):
 
         input = keras.layers.Input((self.max_regions,self.pool_size, self.pool_size, pyramid_top_down_size))
 
-        #TODO: Attempt to use same tricks as MobileNet
-
         x = keras.layers.TimeDistributed(keras.layers.Conv2D(fc_layers_size, (pool_size, pool_size), padding="valid"), name="mrcnn_class_conv1")(
             input)
         x = keras.layers.TimeDistributed(keras.layers.BatchNormalization(),name='mrcnn_class_bn1')(x, training=False)
@@ -34,13 +33,17 @@ class TimeDistributedClassifier(keras.layers.Layer):
         x = keras.layers.TimeDistributed(keras.layers.Conv2D(fc_layers_size, (1, 1)),name="mrcnn_class_conv2")(x)
         x = keras.layers.TimeDistributed(keras.layers.BatchNormalization(),name='mrcnn_class_bn2')(x, training=False)
         shared = keras.layers.Activation('relu')(x)
+        shared = keras.layers.Lambda(lambda x: keras.backend.squeeze(keras.backend.squeeze(x, 3), 2),
+                           name="pool_squeeze")(shared)
         logits = keras.layers.TimeDistributed(keras.layers.Dense(num_classes), name='mrcnn_class_logits')(shared)
         probabilities = keras.layers.TimeDistributed(keras.layers.Activation("softmax"), name="mrcnn_class")(logits)
         bounding_boxes = keras.layers.TimeDistributed(keras.layers.Dense(num_classes * 4, activation='linear'), name='mrcnn_bbox_fc')(shared)
         return keras.models.Model(inputs=[input], outputs=[probabilities,bounding_boxes])
 
     def call(self, inputs):
-        probabilities, bounding_boxes = self._build_keras_inner_model()(inputs)
+        model = self._build_keras_inner_model()
+        model.load_weights(self.weights_path, by_name=True)
+        probabilities, bounding_boxes = model(inputs)
         probabilities = tf.reshape(probabilities, shape=(self.max_regions, self.num_classes))
         bounding_boxes = tf.reshape(bounding_boxes, shape=(self.max_regions, self.num_classes,4))
         class_ids = tf.argmax(probabilities, axis=1, output_type=tf.int32)
@@ -126,6 +129,6 @@ class FPNClassifierGraph():
         fpn_classifier_model = self._build_coreml_inner_model()
         fpn_classifier_model.load_weights(self.weights_path, by_name=True)
 
-        classification = TimeDistributedClassifier(max_regions=max_regions, pool_size=pool_size, num_classes=num_classes, pyramid_top_down_size=pyramid_top_down_size, fc_layers_size=fc_layers_size)([pyramid])
+        classification = TimeDistributedClassifier(max_regions=max_regions, pool_size=pool_size, num_classes=num_classes, pyramid_top_down_size=pyramid_top_down_size, fc_layers_size=fc_layers_size, weights_path=self.weights_path)([pyramid])
 
         return fpn_classifier_model,classification

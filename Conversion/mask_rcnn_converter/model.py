@@ -5,6 +5,7 @@ import keras
 import coremltools
 import skimage.io
 import numpy as np
+import json
 
 from coremltools.proto import NeuralNetwork_pb2
 
@@ -111,7 +112,7 @@ def build_models(config_path,
     fpn_mask_model, masks = fpn_mask_graph.build()
 
     mask_rcnn_model = keras.models.Model(input_image,
-                                     [classification, masks],
+                                     [detections,masks],
                                      name='mask_rcnn_model')
 
     mask_rcnn_model.load_weights(weights_path, by_name=True)
@@ -218,6 +219,7 @@ def export_models(mask_rcnn_model,
 def predict(config_path,
             weights_path,
             results_path,
+            image_ids,
             images,
             params):
 
@@ -232,28 +234,41 @@ def predict(config_path,
 
     detections = np.load("detections.npy")
     masks = np.load("masks.npy")
-    print(detections)
-    #TODO: transform this to output compatible with coco
-    detections = build_detections(detections)
+    print(masks.shape)
+    masks = np.transpose(masks,axes=[0,3,2,1])
+    detections = build_detections(image_ids,detections,masks)
 
-    import json
-    with open('results.json', 'w') as outfile:
+    with open(results_path, 'w') as outfile:
         json.dump(detections, outfile)
 
 
-    print(detections)
-    print(masks.shape)
-
-def build_detections(arrays):
-    print(arrays.shape)
+def build_detections(image_ids,detections_array, masks_array):
     detections = []
-    for i in range(0,arrays.shape[0]):
-        for j in range(0,arrays.shape[1]):
-            detection = build_detection(arrays[i,j,:])
+
+    for i in range(0,detections_array.shape[0]):
+        id = image_ids[i]
+        for j in range(0,detections_array.shape[1]):
+            detection = build_detection(detections_array[i, j, :])
             if detection:
+                detection["image_id"] = id
+                segmentation = rle_encoding(masks_array[i, j, :] > 0.5)
+                detection["segmentation"] = segmentation
                 detections.append(detection)
     return detections
 
+def rle_encoding(x):
+    '''
+    x: numpy array of shape (height, width), 1 - mask, 0 - background
+    Returns run length as list
+    '''
+    dots = np.where(x.T.flatten() == 1)[0]  # .T sets Fortran order down-then-right
+    run_lengths = []
+    prev = -2
+    for b in dots:
+        if (b > prev + 1): run_lengths.extend((int(b + 1), 0))
+        run_lengths[-1] += 1
+        prev = b
+    return run_lengths
 
 def build_detection(array):
     category_id = int(array[4])
@@ -262,6 +277,7 @@ def build_detection(array):
     score = float(array[5])
     bbox = array[0:4].tolist()
     return { "category_id":category_id ,"score":score, "bbox":  bbox}
+
 
 def export(config_path,
            weights_path,

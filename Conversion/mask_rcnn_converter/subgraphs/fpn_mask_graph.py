@@ -11,12 +11,15 @@ class TimeDistributedMask(keras.layers.Layer):
                  max_regions,
                  pool_size,
                  num_classes,
-                 pyramid_top_down_size, **kwargs):
+                 pyramid_top_down_size,
+                 weights_path,
+                 **kwargs):
         super(TimeDistributedMask, self).__init__(**kwargs)
         self.max_regions = max_regions
         self.pool_size = pool_size
         self.num_classes = num_classes
         self.pyramid_top_down_size = pyramid_top_down_size
+        self.weights_path = weights_path
 
     #This will not get exported to CoreML
     def _build_keras_inner_model(self):
@@ -51,7 +54,9 @@ class TimeDistributedMask(keras.layers.Layer):
     def call(self, inputs):
         pyramid = inputs[0]
         rois = inputs[1]
-        masks = self._build_keras_inner_model()(pyramid)
+        model = self._build_keras_inner_model()
+        model.load_weights(self.weights_path, by_name=True)
+        masks = model(pyramid)
 
         #We extract the masks corresponding to the class ids
         class_ids = rois[:,:,4]
@@ -142,7 +147,8 @@ class FPNMaskGraph():
         result = TimeDistributedMask(max_regions=max_regions,
                                      pool_size=pool_size,
                                      num_classes=num_classes,
-                                     pyramid_top_down_size=pyramid_top_down_size)([pyramid, rois])
+                                     pyramid_top_down_size=pyramid_top_down_size,
+                                     weights_path=self.weights_path)([pyramid, rois])
         fpn_mask_model = self._build_coreml_inner_model()
         fpn_mask_model.load_weights(self.weights_path, by_name=True)
         return fpn_mask_model, result

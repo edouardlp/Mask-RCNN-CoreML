@@ -2,7 +2,7 @@ Data/*.h5
 Data/*.mlmodel
 Data/*.bin
 Data/*.npy
-
+Data/*
 
 *.idea
 *.xcuserdatad

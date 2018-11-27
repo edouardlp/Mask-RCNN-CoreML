@@ -5,6 +5,8 @@ import skimage
 import numpy as np
 
 import model
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -31,9 +33,16 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '--images_path',
+        '--coco_annotations_path',
         help='Path to images',
-        default="Data/images",
+        default="Data/coco_annotations/instances_val2017.json",
+        required=False
+    )
+
+    parser.add_argument(
+        '--coco_images_path',
+        help='Path to images',
+        default="Data/coco_images/",
         required=False
     )
 
@@ -43,20 +52,26 @@ if __name__ == '__main__':
     config_path = params.pop('config_path')
     weights_path = params.pop('weights_path')
     results_path = params.pop('results_path')
-    images_path = params.pop('images_path')
+    coco_annotations_path = params.pop('coco_annotations_path')
+    coco_images_path = params.pop('coco_images_path')
 
-    image_ids = []
+    coco = COCO(coco_annotations_path)
+    coco_image_ids = coco.getImgIds()
+    coco_image_ids = coco_image_ids[0:1]
+
+    print(coco_image_ids)
+
+    image_annotations = coco.loadImgs(coco_image_ids)
     images = []
 
-    for filename in os.listdir(images_path):
-        if filename.endswith(".jpg") or filename.endswith(".png"):
-            image = skimage.io.imread(os.path.join(images_path, filename))
-            image_ids.append(filename)
-            images.append(image)
+    for annotation in image_annotations:
+        print(annotation)
+        image = skimage.io.imread(os.path.join(coco_images_path, annotation["file_name"]))
+        images.append(image)
 
     model.predict(config_path=config_path,
                   weights_path=weights_path,
                   results_path=results_path,
-                  image_ids=image_ids,
+                  image_ids=coco_image_ids,
                   images=np.array(images),
                   params=params)
