@@ -1,14 +1,15 @@
 import argparse
 import json
 import os
-import keras
+
+import tensorflow as tf
 
 from coremltools.converters.keras import convert as convert_keras_to_coreml
 from coremltools.models.utils import convert_neural_network_weights_to_fp16
 from coremltools.models.utils import save_spec
 from coremltools.proto import NeuralNetwork_pb2
 
-from maskrcnn import model
+from maskrcnn.model import MaskRCNNModel
 
 def export_models(mask_rcnn_model,
                   classifier_model,
@@ -157,7 +158,9 @@ if __name__ == '__main__':
     #TODO: remove and generate instead
     export_anchors_path = params.pop('export_anchors_path')
 
-    mask_rcnn_model, classifier_model, mask_model, anchors = model.build_models(config_path, weights_path)
+    model = MaskRCNNModel(config_path, initial_keras_weights=weights_path)
+
+    mask_rcnn_model, classifier_model, mask_model, anchors = model.get_trained_keras_models()
     export_models(mask_rcnn_model, classifier_model, mask_model, export_main_path, export_mask_path,
                   export_anchors_path)
     anchors.tofile(export_anchors_path)
