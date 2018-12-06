@@ -1,0 +1,5 @@
+numpy
+tensorflow==1.12
+git+https://github.com/waleedka/coco.git#subdirectory=PythonAPI
+scikit-image
+git+git://github.com/edouardlp/Mask-RCNN-Keras#egg=maskrcnn

@@ -36,6 +36,7 @@ import os.signpost
  - Feature maps. Shape (#regions, 1, #channels, poolSize, poolSize)
 
  */
+@available(iOS 12.0, macOS 10.14, *)
 @objc(PyramidROIAlignLayer) class PyramidROIAlignLayer: NSObject, MLCustomLayer {
     
     let device = MTLCreateSystemDefaultDevice()!
@@ -181,6 +182,7 @@ import os.signpost
     
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 func performBatch(commandQueue:MTLCommandQueue,
                   featureMaps:[MPSImage],
                   channelsSize:Int,
@@ -239,6 +241,7 @@ func performBatch(commandQueue:MTLCommandQueue,
     buffer!.commit()
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 func copyOutput(items:[ROIAlignOutputItem],
                 metalRegion:MTLRegion,
                 maxBatchSize:Int,
@@ -270,6 +273,7 @@ func copyOutput(items:[ROIAlignOutputItem],
     }
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 struct ROIAlignInputBatch {
     
     let groups:[ROIAlignInputGroup]
@@ -288,6 +292,7 @@ struct ROIAlignInputBatch {
     
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 struct ROIAlignInputGroup {
     
     enum Content {
@@ -318,6 +323,7 @@ struct ROIAlignInputGroup {
     
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 struct ROIAlignInputItem {
     
     enum Content {
@@ -329,6 +335,7 @@ struct ROIAlignInputItem {
     let content:Content
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 struct ROIAlignOutputItem {
     
     enum Content {
@@ -340,6 +347,7 @@ struct ROIAlignOutputItem {
     let content:Content
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 func roisToInputItems(rois:MLMultiArray,
                       featureMapSelectionFactor:CGFloat,
                       imageSize:CGSize) -> [ROIAlignInputItem] {
@@ -387,6 +395,7 @@ func roisToInputItems(rois:MLMultiArray,
     return results
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 func groupInputItemsByContent(items:[ROIAlignInputItem], maxComputeBatchSize:Int) -> [ROIAlignInputGroup] {
     
     var results = [ROIAlignInputGroup]()
@@ -457,6 +466,7 @@ func groupInputItemsByContent(items:[ROIAlignInputItem], maxComputeBatchSize:Int
     return results
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 func batchInputGroups(groups:[ROIAlignInputGroup], maxComputeBatchSize:Int) -> [ROIAlignInputBatch] {
     
     var batches = [ROIAlignInputBatch]()

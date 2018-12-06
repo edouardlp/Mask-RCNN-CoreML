@@ -48,6 +48,7 @@ import Accelerate
  - Regions of interest (y1,x1,y2,x2). Shape : (#regionsOut,4),
  
  */
+@available(iOS 12.0, macOS 10.14, *)
 @objc(ProposalLayer) class ProposalLayer: NSObject, MLCustomLayer {
     
     var anchorData:Data!
@@ -64,9 +65,8 @@ import Accelerate
     required init(parameters: [String : Any]) throws {
         super.init()
         
-        //TODO: generate the anchors on demand based on image shape, this will save 5mb
-        self.anchorData = try Data(contentsOf: Bundle.main.url(forResource: "anchors", withExtension: "bin")!)
-        
+        self.anchorData = try Data(contentsOf: MaskRCNNConfig.defaultConfig.anchorsURL!)
+
         if let bboxStdDevCount = parameters["bboxStdDev_count"] as? Int {
             var bboxStdDev = [Float]()
             for i in 0..<bboxStdDevCount {

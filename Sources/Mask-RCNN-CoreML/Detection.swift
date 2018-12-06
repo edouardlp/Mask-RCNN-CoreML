@@ -11,15 +11,16 @@ import CoreGraphics
 import CoreML
 import CoreImage
 
-struct Detection {
+@available(iOS 12.0, macOS 10.14, *)
+public struct Detection {
     
-    let index:Int
-    let boundingBox:CGRect
-    let classId:Int
-    let score:Double
-    let mask:CGImage?
+    public let index:Int
+    public let boundingBox:CGRect
+    public let classId:Int
+    public let score:Double
+    public let mask:CGImage?
     
-    static func detectionsFromFeatureValue(featureValue:MLFeatureValue,
+    public static func detectionsFromFeatureValue(featureValue:MLFeatureValue,
                                            maskFeatureValue:MLFeatureValue?) -> [Detection] {
         
         guard let rawDetections = featureValue.multiArrayValue else {

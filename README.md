@@ -27,7 +27,9 @@ This model will only be useful if instance segmentation is valuable for your use
 ## Requirements
 
 - Xcode 10.1
-- iOS 12
+- iOS 12 or macOS 10.14 device with Metal support
+- Swift 4.2
+- Docker (for scripts)
 - (More requirements details coming soon)
 
 ## Installation

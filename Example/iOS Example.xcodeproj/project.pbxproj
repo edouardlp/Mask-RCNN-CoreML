@@ -7,40 +7,37 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		057A561721A4E6150012C10B /* TimeDistributedClassifierLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 057A561621A4E6150012C10B /* TimeDistributedClassifierLayer.swift */; };
-		057A561921A4E6760012C10B /* Classifier.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 057A561821A4E6760012C10B /* Classifier.mlmodel */; };
-		05800F06219C8E7B00832400 /* TimeDistributedMaskLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */; };
-		05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */; };
-		05800F08219C8E7B00832400 /* DetectionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F02219C8E7B00832400 /* DetectionLayer.swift */; };
-		05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F03219C8E7B00832400 /* ProposalLayer.swift */; };
-		05800F0A219C8E7B00832400 /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F04219C8E7B00832400 /* Utils.swift */; };
-		05800F11219C8ECD00832400 /* MaskRCNN.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05800F0F219C8ECD00832400 /* MaskRCNN.mlmodel */; };
-		05800F14219C8EDF00832400 /* anchors.bin in Resources */ = {isa = PBXBuildFile; fileRef = 05800F13219C8EDF00832400 /* anchors.bin */; };
+		054539F721B9A63A005A6AED /* Utils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539EF21B9A63A005A6AED /* Utils.swift */; };
+		054539F821B9A63A005A6AED /* PyramidROIAlignLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F021B9A63A005A6AED /* PyramidROIAlignLayer.swift */; };
+		054539F921B9A63A005A6AED /* ProposalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F121B9A63A005A6AED /* ProposalLayer.swift */; };
+		054539FA21B9A63A005A6AED /* BoxUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F221B9A63A005A6AED /* BoxUtils.swift */; };
+		054539FB21B9A63A005A6AED /* DetectionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F321B9A63A005A6AED /* DetectionLayer.swift */; };
+		054539FC21B9A63A005A6AED /* Detection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F421B9A63A005A6AED /* Detection.swift */; };
+		054539FD21B9A63A005A6AED /* TimeDistributedMaskLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F521B9A63A005A6AED /* TimeDistributedMaskLayer.swift */; };
+		054539FE21B9A63A005A6AED /* TimeDistributedClassifierLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 054539F621B9A63A005A6AED /* TimeDistributedClassifierLayer.swift */; };
 		05800F16219C9F6700832400 /* DetectionRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F15219C9F6700832400 /* DetectionRenderer.swift */; };
-		05800F18219C9FB900832400 /* Detection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F17219C9FB900832400 /* Detection.swift */; };
-		05800F1A219CCC2900832400 /* Mask.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05800F19219CCC2900832400 /* Mask.mlmodel */; };
-		05800F1E219F0B4400832400 /* BoxUtils.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05800F1D219F0B4400832400 /* BoxUtils.swift */; };
 		05B55095219C877A00974728 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B55094219C877A00974728 /* AppDelegate.swift */; };
 		05B55097219C877A00974728 /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05B55096219C877A00974728 /* ViewController.swift */; };
 		05B5509A219C877A00974728 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 05B55098219C877A00974728 /* Main.storyboard */; };
 		05B5509C219C877B00974728 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 05B5509B219C877B00974728 /* Assets.xcassets */; };
 		05B5509F219C877B00974728 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 05B5509D219C877B00974728 /* LaunchScreen.storyboard */; };
+		05F2CE2821BAC2E8004EBBC5 /* MaskRCNNConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F2CE2721BAC2E8004EBBC5 /* MaskRCNNConfig.swift */; };
+		05F2CE3621BAF3AD004EBBC5 /* MaskRCNN.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05F2CE3221BAF3AD004EBBC5 /* MaskRCNN.mlmodel */; };
+		05F2CE3721BAF3AD004EBBC5 /* Mask.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05F2CE3321BAF3AD004EBBC5 /* Mask.mlmodel */; };
+		05F2CE3821BAF3AD004EBBC5 /* anchors.bin in Resources */ = {isa = PBXBuildFile; fileRef = 05F2CE3421BAF3AD004EBBC5 /* anchors.bin */; };
+		05F2CE3921BAF3AD004EBBC5 /* Classifier.mlmodel in Sources */ = {isa = PBXBuildFile; fileRef = 05F2CE3521BAF3AD004EBBC5 /* Classifier.mlmodel */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		057A561621A4E6150012C10B /* TimeDistributedClassifierLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = TimeDistributedClassifierLayer.swift; path = ../../Library/TimeDistributedClassifierLayer.swift; sourceTree = "<group>"; };
-		057A561821A4E6760012C10B /* Classifier.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = Classifier.mlmodel; path = ../../Data/Classifier.mlmodel; sourceTree = "<group>"; };
-		05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = TimeDistributedMaskLayer.swift; path = ../../Library/TimeDistributedMaskLayer.swift; sourceTree = "<group>"; };
-		05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PyramidROIAlignLayer.swift; path = ../../Library/PyramidROIAlignLayer.swift; sourceTree = "<group>"; };
-		05800F02219C8E7B00832400 /* DetectionLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetectionLayer.swift; path = ../../Library/DetectionLayer.swift; sourceTree = "<group>"; };
-		05800F03219C8E7B00832400 /* ProposalLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ProposalLayer.swift; path = ../../Library/ProposalLayer.swift; sourceTree = "<group>"; };
-		05800F04219C8E7B00832400 /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Utils.swift; path = ../../Library/Utils.swift; sourceTree = "<group>"; };
-		05800F0F219C8ECD00832400 /* MaskRCNN.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = MaskRCNN.mlmodel; path = ../../Data/MaskRCNN.mlmodel; sourceTree = "<group>"; };
-		05800F13219C8EDF00832400 /* anchors.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; name = anchors.bin; path = ../../Data/anchors.bin; sourceTree = "<group>"; };
+		054539EF21B9A63A005A6AED /* Utils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Utils.swift; path = "../../Sources/Mask-RCNN-CoreML/Utils.swift"; sourceTree = "<group>"; };
+		054539F021B9A63A005A6AED /* PyramidROIAlignLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = PyramidROIAlignLayer.swift; path = "../../Sources/Mask-RCNN-CoreML/PyramidROIAlignLayer.swift"; sourceTree = "<group>"; };
+		054539F121B9A63A005A6AED /* ProposalLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = ProposalLayer.swift; path = "../../Sources/Mask-RCNN-CoreML/ProposalLayer.swift"; sourceTree = "<group>"; };
+		054539F221B9A63A005A6AED /* BoxUtils.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = BoxUtils.swift; path = "../../Sources/Mask-RCNN-CoreML/BoxUtils.swift"; sourceTree = "<group>"; };
+		054539F321B9A63A005A6AED /* DetectionLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = DetectionLayer.swift; path = "../../Sources/Mask-RCNN-CoreML/DetectionLayer.swift"; sourceTree = "<group>"; };
+		054539F421B9A63A005A6AED /* Detection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = Detection.swift; path = "../../Sources/Mask-RCNN-CoreML/Detection.swift"; sourceTree = "<group>"; };
+		054539F521B9A63A005A6AED /* TimeDistributedMaskLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = TimeDistributedMaskLayer.swift; path = "../../Sources/Mask-RCNN-CoreML/TimeDistributedMaskLayer.swift"; sourceTree = "<group>"; };
+		054539F621B9A63A005A6AED /* TimeDistributedClassifierLayer.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = TimeDistributedClassifierLayer.swift; path = "../../Sources/Mask-RCNN-CoreML/TimeDistributedClassifierLayer.swift"; sourceTree = "<group>"; };
 		05800F15219C9F6700832400 /* DetectionRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetectionRenderer.swift; sourceTree = "<group>"; };
-		05800F17219C9FB900832400 /* Detection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Detection.swift; path = ../../Library/Detection.swift; sourceTree = "<group>"; };
-		05800F19219CCC2900832400 /* Mask.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = Mask.mlmodel; path = ../../Data/Mask.mlmodel; sourceTree = "<group>"; };
-		05800F1D219F0B4400832400 /* BoxUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = BoxUtils.swift; path = ../../Library/BoxUtils.swift; sourceTree = "<group>"; };
 		05B55091219C877A00974728 /* Example.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Example.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		05B55094219C877A00974728 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		05B55096219C877A00974728 /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -48,6 +45,11 @@
 		05B5509B219C877B00974728 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		05B5509E219C877B00974728 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		05B550A0219C877B00974728 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		05F2CE2721BAC2E8004EBBC5 /* MaskRCNNConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MaskRCNNConfig.swift; path = "../../Sources/Mask-RCNN-CoreML/MaskRCNNConfig.swift"; sourceTree = "<group>"; };
+		05F2CE3221BAF3AD004EBBC5 /* MaskRCNN.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = MaskRCNN.mlmodel; path = ../../.maskrcnn/models/coco/products/MaskRCNN.mlmodel; sourceTree = "<group>"; };
+		05F2CE3321BAF3AD004EBBC5 /* Mask.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = Mask.mlmodel; path = ../../.maskrcnn/models/coco/products/Mask.mlmodel; sourceTree = "<group>"; };
+		05F2CE3421BAF3AD004EBBC5 /* anchors.bin */ = {isa = PBXFileReference; lastKnownFileType = archive.macbinary; name = anchors.bin; path = ../../.maskrcnn/models/coco/products/anchors.bin; sourceTree = "<group>"; };
+		05F2CE3521BAF3AD004EBBC5 /* Classifier.mlmodel */ = {isa = PBXFileReference; lastKnownFileType = file.mlmodel; name = Classifier.mlmodel; path = ../../.maskrcnn/models/coco/products/Classifier.mlmodel; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,14 +66,15 @@
 		05800EFD219C8E5E00832400 /* Library */ = {
 			isa = PBXGroup;
 			children = (
-				05800F03219C8E7B00832400 /* ProposalLayer.swift */,
-				05800F01219C8E7A00832400 /* PyramidROIAlignLayer.swift */,
-				05800F02219C8E7B00832400 /* DetectionLayer.swift */,
-				05800F00219C8E7A00832400 /* TimeDistributedMaskLayer.swift */,
-				057A561621A4E6150012C10B /* TimeDistributedClassifierLayer.swift */,
-				05800F17219C9FB900832400 /* Detection.swift */,
-				05800F04219C8E7B00832400 /* Utils.swift */,
-				05800F1D219F0B4400832400 /* BoxUtils.swift */,
+				054539F421B9A63A005A6AED /* Detection.swift */,
+				054539F321B9A63A005A6AED /* DetectionLayer.swift */,
+				054539F121B9A63A005A6AED /* ProposalLayer.swift */,
+				054539F021B9A63A005A6AED /* PyramidROIAlignLayer.swift */,
+				054539F621B9A63A005A6AED /* TimeDistributedClassifierLayer.swift */,
+				054539F521B9A63A005A6AED /* TimeDistributedMaskLayer.swift */,
+				054539F221B9A63A005A6AED /* BoxUtils.swift */,
+				054539EF21B9A63A005A6AED /* Utils.swift */,
+				05F2CE2721BAC2E8004EBBC5 /* MaskRCNNConfig.swift */,
 			);
 			name = Library;
 			sourceTree = "<group>";
@@ -79,19 +82,12 @@
 		05800F0D219C8E9900832400 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				057A561821A4E6760012C10B /* Classifier.mlmodel */,
-				05800F19219CCC2900832400 /* Mask.mlmodel */,
-				05800F0F219C8ECD00832400 /* MaskRCNN.mlmodel */,
+				05F2CE3421BAF3AD004EBBC5 /* anchors.bin */,
+				05F2CE3521BAF3AD004EBBC5 /* Classifier.mlmodel */,
+				05F2CE3321BAF3AD004EBBC5 /* Mask.mlmodel */,
+				05F2CE3221BAF3AD004EBBC5 /* MaskRCNN.mlmodel */,
 			);
 			name = Models;
-			sourceTree = "<group>";
-		};
-		05800F12219C8ED600832400 /* Data */ = {
-			isa = PBXGroup;
-			children = (
-				05800F13219C8EDF00832400 /* anchors.bin */,
-			);
-			name = Data;
 			sourceTree = "<group>";
 		};
 		05B55088219C877A00974728 = {
@@ -120,7 +116,6 @@
 				05B5509B219C877B00974728 /* Assets.xcassets */,
 				05B5509D219C877B00974728 /* LaunchScreen.storyboard */,
 				05B550A0219C877B00974728 /* Info.plist */,
-				05800F12219C8ED600832400 /* Data */,
 				05800EFD219C8E5E00832400 /* Library */,
 				05800F0D219C8E9900832400 /* Models */,
 			);
@@ -185,7 +180,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				05800F14219C8EDF00832400 /* anchors.bin in Resources */,
+				05F2CE3821BAF3AD004EBBC5 /* anchors.bin in Resources */,
 				05B5509F219C877B00974728 /* LaunchScreen.storyboard in Resources */,
 				05B5509C219C877B00974728 /* Assets.xcassets in Resources */,
 				05B5509A219C877A00974728 /* Main.storyboard in Resources */,
@@ -199,20 +194,21 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				05800F1A219CCC2900832400 /* Mask.mlmodel in Sources */,
+				054539FC21B9A63A005A6AED /* Detection.swift in Sources */,
 				05B55097219C877A00974728 /* ViewController.swift in Sources */,
-				05800F18219C9FB900832400 /* Detection.swift in Sources */,
-				05800F08219C8E7B00832400 /* DetectionLayer.swift in Sources */,
-				05800F11219C8ECD00832400 /* MaskRCNN.mlmodel in Sources */,
-				05800F09219C8E7B00832400 /* ProposalLayer.swift in Sources */,
+				05F2CE3621BAF3AD004EBBC5 /* MaskRCNN.mlmodel in Sources */,
+				054539FB21B9A63A005A6AED /* DetectionLayer.swift in Sources */,
+				054539F721B9A63A005A6AED /* Utils.swift in Sources */,
+				054539F921B9A63A005A6AED /* ProposalLayer.swift in Sources */,
 				05B55095219C877A00974728 /* AppDelegate.swift in Sources */,
-				05800F1E219F0B4400832400 /* BoxUtils.swift in Sources */,
-				057A561721A4E6150012C10B /* TimeDistributedClassifierLayer.swift in Sources */,
-				05800F06219C8E7B00832400 /* TimeDistributedMaskLayer.swift in Sources */,
-				05800F07219C8E7B00832400 /* PyramidROIAlignLayer.swift in Sources */,
-				05800F0A219C8E7B00832400 /* Utils.swift in Sources */,
+				054539FD21B9A63A005A6AED /* TimeDistributedMaskLayer.swift in Sources */,
+				054539FE21B9A63A005A6AED /* TimeDistributedClassifierLayer.swift in Sources */,
+				05F2CE2821BAC2E8004EBBC5 /* MaskRCNNConfig.swift in Sources */,
+				05F2CE3721BAF3AD004EBBC5 /* Mask.mlmodel in Sources */,
+				05F2CE3921BAF3AD004EBBC5 /* Classifier.mlmodel in Sources */,
+				054539F821B9A63A005A6AED /* PyramidROIAlignLayer.swift in Sources */,
 				05800F16219C9F6700832400 /* DetectionRenderer.swift in Sources */,
-				057A561921A4E6760012C10B /* Classifier.mlmodel in Sources */,
+				054539FA21B9A63A005A6AED /* BoxUtils.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

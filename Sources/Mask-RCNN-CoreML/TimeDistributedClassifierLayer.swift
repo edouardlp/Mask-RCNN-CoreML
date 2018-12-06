@@ -10,6 +10,7 @@ import Foundation
 import CoreML
 import Accelerate
 
+@available(iOS 12.0, macOS 10.14, *)
 @objc(TimeDistributedClassifierLayer) class TimeDistributedClassifierLayer: NSObject, MLCustomLayer {
     
     let featureNames:[String] = ["feature_map"]
@@ -36,9 +37,8 @@ import Accelerate
         os_signpost(OSSignpostType.begin, log: log, name: "TimeDistributedClassifierLayer-Eval")
         
         assert(inputs[0].dataType == MLMultiArrayDataType.float32)
-  
-        let classifier = Classifier()
-        let model = classifier.model
+
+        let model = try MLModel(contentsOf:MaskRCNNConfig.defaultConfig.compiledClassifierModelURL!)
         let predictionOptions = MLPredictionOptions()
         
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, removeZeros:false, featureNames: self.featureNames)
@@ -91,6 +91,7 @@ import Accelerate
     }
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 class MultiArrayBatchProvider : MLBatchProvider
 {
     let multiArrays:[MLMultiArray]
@@ -139,6 +140,7 @@ class MultiArrayBatchProvider : MLBatchProvider
     }
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 class MultiArrayFeatureProvider : MLFeatureProvider
 {
     let multiArrays:[MLMultiArray]

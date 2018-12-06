@@ -10,6 +10,8 @@ import Foundation
 import Accelerate
 import CoreML
 
+extension String: Error {}
+
 extension UnsafePointer where Pointee == Float {
     
     func stridedSlice(begin:Int, count:Int, stride:Int, length:Int = 1) -> [Float] {
@@ -85,6 +87,7 @@ extension ArraySlice where Element == UInt {
     
 }
 
+@available(iOS 12.0, macOS 10.14, *)
 extension MLMultiArray {
     
     func floatDataPointer() -> UnsafePointer<Float> {

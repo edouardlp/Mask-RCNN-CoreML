@@ -48,6 +48,7 @@ import Accelerate
 The classIds are the argmax of each rows in the class probability input.
  
  */
+@available(iOS 12.0, macOS 10.14, *)
 @objc(DetectionLayer) class DetectionLayer: NSObject, MLCustomLayer {
     
     //Bounding box deltas refinement standard deviation

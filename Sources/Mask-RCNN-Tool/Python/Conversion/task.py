@@ -108,7 +108,7 @@ def export_models(mask_rcnn_model,
     classifier_model_coreml.input_description["feature_map"] = "Fully processed feature map, ready for classification."
     half_classifier_model = convert_neural_network_weights_to_fp16(classifier_model_coreml)
     half_classifier_spec = half_classifier_model.get_spec()
-    save_spec(half_classifier_spec, "Data/Classifier.mlmodel")
+    save_spec(half_classifier_spec, "products/Classifier.mlmodel")
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -116,35 +116,35 @@ if __name__ == '__main__':
     parser.add_argument(
         '--config_path',
         help='Path to config file',
-        default="Data/config.json",
+        default="model/config.json",
         required=False
     )
 
     parser.add_argument(
         '--weights_path',
         help='Path to weights file',
-        default="Data/weights.h5",
+        default="model/weights.h5",
         required=False
     )
 
     parser.add_argument(
         '--export_main_path',
         help='Path to export main file',
-        default="Data/MaskRCNN.mlmodel",
+        default="products/MaskRCNN.mlmodel",
         required=False
     )
 
     parser.add_argument(
         '--export_mask_path',
         help='Path to export mask file',
-        default="Data/Mask.mlmodel",
+        default="products/Mask.mlmodel",
         required=False
     )
 
     parser.add_argument(
         '--export_anchors_path',
         help='Path to export anchors file',
-        default="Data/anchors.bin",
+        default="products/anchors.bin",
         required=False
     )
 

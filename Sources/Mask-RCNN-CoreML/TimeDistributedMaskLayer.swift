@@ -10,6 +10,7 @@ import Foundation
 import CoreML
 import Accelerate
 
+@available(iOS 12.0, macOS 10.14, *)
 @objc(TimeDistributedMaskLayer) class TimeDistributedMaskLayer: NSObject, MLCustomLayer {
 
     let featureNames:[String] = ["feature_map"]
@@ -45,13 +46,12 @@ import Accelerate
         let detectionCount = Int(truncating: detections.shape[0])
         let detectionsStride = Int(truncating: detections.strides[0])
         
-        let model = Mask().model
+        let model = try MLModel(contentsOf:MaskRCNNConfig.defaultConfig.compiledMaskModelURL!)
         let predictionOptions = MLPredictionOptions()
         
         let batchIn = MultiArrayBatchProvider(multiArrays: inputs, removeZeros:true, featureNames: self.featureNames)
         let batchOut = try model.predictions(from: batchIn, options: predictionOptions)
         let resultFeatureNames = ["masks"]
-        
         let output = outputs[0]
         let outputStride = Int(truncating: output.strides[2])
         

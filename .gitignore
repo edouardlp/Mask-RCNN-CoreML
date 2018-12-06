@@ -1,9 +1,5 @@
-Data/*.h5
-Data/*.mlmodel
-Data/*.bin
-Data/*.npy
-Data/*
-
+*.maskrcnn
+*.build
 *.idea
 *.xcuserdatad
 */venv/
