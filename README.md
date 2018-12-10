@@ -108,11 +108,13 @@ The products of the conversion will be placed as such :
                 Classifier.model
 ```
 
+Run :
+
 ```bash
 $ swift run maskrcnn convert <your_model_name>
 ```
 
-If you want to use input files located elsewhere, or to output the model to another directory, simply use
+If you want to use input files located elsewhere, or to output the model to another directory, simply run :
 
 ```bash
 $ swift run maskrcnn convert <your_model_name> --config=<path_to_config_file> --weights=<path_to_weights_file> --output_dir=<path_to_output_dir>
@@ -120,7 +122,7 @@ $ swift run maskrcnn convert <your_model_name> --config=<path_to_config_file> --
 
 ### Training or fine-tuning a model
 
-This is not supported at the moment, but the next element in my roadmap.
+This is not supported at the moment, but the next item in my roadmap.
 
 ## Evaluating the model accuracy
 
@@ -135,7 +137,7 @@ To use the default directory structure, place your files as such:
     data/
         coco/
             the_coco_annotation_files.json
-            val_the_year(ex: val2017)/
+            type_year(ex: val2017)/
                 the_images.jpg
     models/
         your_model_name/
@@ -146,9 +148,10 @@ To use the default directory structure, place your files as such:
                 Classifier.model
 ```
 
+Run : 
 
 ```bash
-$ swift run maskrcnn eval <your_model_name>
+$ swift run maskrcnn eval coco <your_model_name> --year=<coco dataset year> --type=<coco dataset type ex : val>
 ```
 
 If you want to compare against the model using Tensorflow, place the model files as such :
@@ -165,13 +168,13 @@ If you want to compare against the model using Tensorflow, place the model files
 Use -c to compare
 
 ```bash
-$ swift run maskrcnn eval coco <your_model_name> -c
+$ swift run maskrcnn eval coco <your_model_name> -c --year=<coco dataset year> --type=<coco dataset type ex : val>
 ```
 
 If you want to have your files in custom locations :
 
 ```bash
-$ swift run maskrcnn eval coco <your_model_name> -c --config=<path_to_config_file> --weights=<path_to_weights_file> --products_dir=<path_to_products_dir>
+$ swift run maskrcnn eval coco <your_model_name> -c  --year=<coco dataset year> --type=<coco dataset type ex : val> --config=<path_to_config_file> --weights=<path_to_weights_file> --products_dir=<path_to_products_dir>
 ```
 
 ## Roadmap
@@ -191,8 +194,8 @@ $ swift run maskrcnn eval coco <your_model_name> -c --config=<path_to_config_fil
 ## Credits
 
 - [Original Paper](https://arxiv.org/abs/1703.06870)
-- [Matterport Implementation](https://github.com/matterport/Mask_RCNN)
-- [Inspiration](http://machinethink.net/blog//)
+- [Matterport Implementation](https://github.com/matterport/Mask_RCNN/)
+- [Inspiration](http://machinethink.net/blog/)
 
 ## References
 

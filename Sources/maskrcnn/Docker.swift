@@ -5,8 +5,8 @@ class Docker {
     
     class var installed:Bool {
         do {
-            try SwiftCLI.run("docker",
-                             arguments:["version"])
+            let _ = try SwiftCLI.capture("docker",
+                                         arguments:["version"])
             return true
         } catch {
             return false

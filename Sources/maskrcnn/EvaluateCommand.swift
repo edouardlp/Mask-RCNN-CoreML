@@ -10,8 +10,15 @@ class EvaluateCommand: Command {
     
     let name = "evaluate"
     let shortDescription = "Evaluates CoreML model against validation data"
+    
     let modelName = Parameter()
-    let evalType = Parameter()
+    let evalDataset = Parameter()
+    let configFilePath = Key<String>("--config", description: "Path to config JSON file")
+    let weightsFilePath = Key<String>("--weights", description: "Path to HDF5 weights file")
+    let productsDirectoryPath = Key<String>("--products_dir", description: "Path to products directory")
+    let yearOption = Key<String>("--year", description: "COCO dataset year")
+    let typeOption = Key<String>("--type", description: "COCO dataset type")
+    let compareFlag = Flag("-c", "--compare")
 
     func execute() throws {
 
@@ -25,30 +32,37 @@ class EvaluateCommand: Command {
             return
         }
         
-        let name = modelName.value
-        let evalType = modelName.value
+        let name = self.modelName.value
+        let evalDataset = self.evalDataset.value
         
-        stdout <<< "Evaluating \(name) using \(evalType)"
+        stdout <<< "Evaluating \(name) using \(evalDataset)"
         
         let currentDirectoryPath = FileManager.default.currentDirectoryPath
         let currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
-        let modelURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/models").appendingPathComponent(name)
-        let dataURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/data")
         
-        let productsURL = modelURL.appendingPathComponent("products")
+        let defaultModelURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/models").appendingPathComponent(name)
+        let defaultDataURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/data")
+        
+        let productsURL:URL = {
+            () -> URL in
+            guard let productsDirectoryPath = productsDirectoryPath.value else {
+                return defaultModelURL.appendingPathComponent("products")
+            }
+            return URL(fileURLWithPath:productsDirectoryPath, isDirectory:false, relativeTo:currentDirectoryURL).standardizedFileURL
+        }()
 
         let mainModelURL = productsURL.appendingPathComponent("MaskRCNN.mlmodel")
         let classifierModelURL = productsURL.appendingPathComponent("Classifier.mlmodel")
         let maskModelURL = productsURL.appendingPathComponent("Mask.mlmodel")
         let anchorsURL = productsURL.appendingPathComponent("anchors.bin")
         
-        let cocoURL = dataURL.appendingPathComponent("coco_eval")
+        let cocoURL = defaultDataURL.appendingPathComponent("coco_eval")
         let annotationsDirectoryURL = cocoURL
-        let imagesDirectoryURL = cocoURL.appendingPathComponent("val2017")
         
-        let year = "2017"
-        let type = "val"
-        
+        let year = yearOption.value ?? "2017"
+        let type = typeOption.value ?? "val"
+        let imagesDirectoryURL = cocoURL.appendingPathComponent("\(type)\(year)")
+
         try evaluate(modelURL:mainModelURL,
                      classifierModelURL:classifierModelURL,
                      maskModelURL:maskModelURL,
@@ -57,6 +71,10 @@ class EvaluateCommand: Command {
                      imagesDirectoryURL:imagesDirectoryURL,
                      year:year,
                      type:type)
+        
+        if(compareFlag.value) {
+            stdout <<< "Comparison coming soon."
+        }
         
     }
 }
