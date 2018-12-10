@@ -16,7 +16,12 @@ class EvaluateCommand: Command {
     func execute() throws {
 
         guard #available(macOS 10.14, *) else {
-            print("eval requires macOS >= 10.13")
+            stdout <<< "eval requires macOS >= 10.14"
+            return
+        }
+        
+        guard Docker.installed else {
+            stdout <<< "Docker is required to run this script."
             return
         }
         

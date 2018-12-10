@@ -66,6 +66,7 @@
 		05800EFD219C8E5E00832400 /* Library */ = {
 			isa = PBXGroup;
 			children = (
+				05F2CE2721BAC2E8004EBBC5 /* MaskRCNNConfig.swift */,
 				054539F421B9A63A005A6AED /* Detection.swift */,
 				054539F321B9A63A005A6AED /* DetectionLayer.swift */,
 				054539F121B9A63A005A6AED /* ProposalLayer.swift */,
@@ -74,7 +75,6 @@
 				054539F521B9A63A005A6AED /* TimeDistributedMaskLayer.swift */,
 				054539F221B9A63A005A6AED /* BoxUtils.swift */,
 				054539EF21B9A63A005A6AED /* Utils.swift */,
-				05F2CE2721BAC2E8004EBBC5 /* MaskRCNNConfig.swift */,
 			);
 			name = Library;
 			sourceTree = "<group>";

@@ -3,6 +3,16 @@ import SwiftCLI
 
 class Docker {
     
+    class var installed:Bool {
+        do {
+            try SwiftCLI.run("docker",
+                             arguments:["version"])
+            return true
+        } catch {
+            return false
+        }
+    }
+    
     let name:String
     let buildURL:URL
     

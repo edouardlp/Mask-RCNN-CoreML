@@ -19,7 +19,7 @@ let package = Package(
             name: "Mask-RCNN-CoreML",
             dependencies: []),
         .target(
-            name: "Mask-RCNN-Tool",
+            name: "maskrcnn",
             dependencies: ["SwiftProtobuf","SwiftCLI", "Mask-RCNN-CoreML"]),
     ]
 )

@@ -9,9 +9,14 @@ class ConvertCommand: Command {
     
     func execute() throws {
         
+        guard Docker.installed else {
+            stdout <<< "Docker is required to run this script."
+            return
+        }
+        
         let name = modelName.value
         
-        stdout <<< "Converting \(name)!"
+        stdout <<< "Converting project '\(name)'."
         
         let verbose = false
         
@@ -25,6 +30,7 @@ class ConvertCommand: Command {
         let productsDirectoryURL = modelURL.appendingPathComponent("products/")
         
         let docker = Docker(name:"mask-rcnn-convert", buildURL:buildURL)
+        
         try docker.build(verbose:verbose)
         try docker.run(mounts:[Docker.Mount(source:modelDirectoryURL, destination:"/usr/src/app/model"),
                            Docker.Mount(source:productsDirectoryURL, destination:"/usr/src/app/products")],verbose:verbose)
