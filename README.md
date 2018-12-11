@@ -38,9 +38,9 @@ This model will only be useful if instance segmentation is valuable for your use
 ## iOS Example Project Usage
 
 
-1. Checkout a release
-2. Open a shell and navigate to the root of the repository
-3. Download the pre-trained model files using :
+1. Checkout or download this repository
+2. Open a shell and navigate (cd) to the root of the repository
+3. Download the pre-trained model files using the command:
 
 ```bash
 $ swift run maskrcnn download example
