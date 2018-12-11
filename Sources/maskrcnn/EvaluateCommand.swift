@@ -40,13 +40,20 @@ class EvaluateCommand: Command {
         let currentDirectoryPath = FileManager.default.currentDirectoryPath
         let currentDirectoryURL = URL(fileURLWithPath: currentDirectoryPath)
         
-        let defaultModelURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/models").appendingPathComponent(name)
-        let defaultDataURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/data")
+        let buildURL = currentDirectoryURL.appendingPathComponent("Sources/maskrcnn/Python/COCOEval")
         
+        let verbose = true
+        let docker = Docker(name:"mask-rcnn-evaluate", buildURL:buildURL)
+        try docker.build(verbose:verbose)
+        
+        let defaultModelsURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/models").appendingPathComponent(name)
+        let defaultDataURL = currentDirectoryURL.appendingPathComponent(".maskrcnn/data")
+        let defaultModelDirectoryURL = defaultModelsURL.appendingPathComponent("model")
+
         let productsURL:URL = {
             () -> URL in
             guard let productsDirectoryPath = productsDirectoryPath.value else {
-                return defaultModelURL.appendingPathComponent("products")
+                return defaultModelsURL.appendingPathComponent("products")
             }
             return URL(fileURLWithPath:productsDirectoryPath, isDirectory:false, relativeTo:currentDirectoryURL).standardizedFileURL
         }()
@@ -62,32 +69,77 @@ class EvaluateCommand: Command {
         let year = yearOption.value ?? "2017"
         let type = typeOption.value ?? "val"
         let imagesDirectoryURL = cocoURL.appendingPathComponent("\(type)\(year)")
-
-        try evaluate(modelURL:mainModelURL,
-                     classifierModelURL:classifierModelURL,
-                     maskModelURL:maskModelURL,
-                     anchorsURL:anchorsURL,
-                     annotationsDirectoryURL:annotationsDirectoryURL,
-                     imagesDirectoryURL:imagesDirectoryURL,
-                     year:year,
-                     type:type)
         
-        if(compareFlag.value) {
-            stdout <<< "Comparison coming soon."
+        var mounts = [Docker.Mount]()
+        
+        let dockerConfigDestinationPath = "/usr/src/app/model/config.json"
+        
+        if let configFilePath = self.configFilePath.value {
+            let configURL = URL(fileURLWithPath:configFilePath, isDirectory:false, relativeTo:currentDirectoryURL)
+            mounts.append(Docker.Mount(source:configURL.standardizedFileURL, destination:dockerConfigDestinationPath))
+        } else {
+            mounts.append(Docker.Mount(source:defaultModelDirectoryURL.appendingPathComponent("config.json"),
+                                       destination:dockerConfigDestinationPath))
         }
         
+        let dockerWeightsDestinationPath = "/usr/src/app/model/weights.h5"
+        
+        if let weightsFilePath = self.weightsFilePath.value {
+            let weightsURL = URL(fileURLWithPath:weightsFilePath, isDirectory:false, relativeTo:currentDirectoryURL)
+            mounts.append(Docker.Mount(source:weightsURL.standardizedFileURL, destination:dockerWeightsDestinationPath))
+        } else {
+            mounts.append(Docker.Mount(source:defaultModelDirectoryURL.appendingPathComponent("weights.h5"),
+                                       destination:dockerWeightsDestinationPath))
+        }
+        
+        let dockerProductsDestinationPath = "/usr/src/app/products"
+        mounts.append(Docker.Mount(source:productsURL,
+                                   destination:dockerProductsDestinationPath))
+        
+        let dockerCocoDataDestinationPath = "/usr/src/app/data/coco"
+        mounts.append(Docker.Mount(source:cocoURL,
+                                   destination:dockerCocoDataDestinationPath))
+        
+        let temporaryDirectory = currentDirectoryURL.appendingPathComponent(".maskrcnn/tmp")
+        try Foundation.FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true, attributes: nil)
+        let fileName = NSUUID().uuidString+".pb"
+        let outputDataURL = temporaryDirectory.appendingPathComponent(fileName)
+        
+        let output = try evaluate(datasetId:evalDataset,
+                                     modelURL:mainModelURL,
+                                     classifierModelURL:classifierModelURL,
+                                     maskModelURL:maskModelURL,
+                                     anchorsURL:anchorsURL,
+                                     annotationsDirectoryURL:annotationsDirectoryURL,
+                                     imagesDirectoryURL:imagesDirectoryURL,
+                                     year:year,
+                                     type:type)
+        let outputData = try output.serializedData()
+        try outputData.write(to:outputDataURL)
+        
+        let dockerResultsDestinationPath = "/usr/src/app/results"
+        mounts.append(Docker.Mount(source:outputDataURL.standardizedFileURL,
+                                   destination:dockerResultsDestinationPath))
+        var arguments = ["--coco_year", year, "--coco_type", type, "--results_path", "results"]
+        if(compareFlag.value){
+            arguments.append("--compare")
+            arguments.append("--compare")
+        }
+        try docker.run(mounts:mounts, arguments:arguments, verbose:verbose)
+        try Foundation.FileManager.default.removeItem(at:outputDataURL)
     }
 }
 
 @available(macOS 10.14, *)
-func evaluate(modelURL:URL,
+func evaluate(datasetId:String,
+              modelURL:URL,
               classifierModelURL:URL,
               maskModelURL:URL,
               anchorsURL:URL,
               annotationsDirectoryURL:URL,
               imagesDirectoryURL:URL,
               year:String,
-              type:String) throws {
+              type:String) throws -> Results {
     
     MaskRCNNConfig.defaultConfig.anchorsURL = anchorsURL
     
@@ -108,6 +160,8 @@ func evaluate(modelURL:URL,
     
     let coco = try COCO(url:instancesURL)
     
+    var outputResults = [Result]()
+    
     var iterator = coco.makeImageIterator(limit:5, sortById:true)
     while let item = iterator.next() {
         let start = Date().timeIntervalSinceReferenceDate
@@ -120,11 +174,75 @@ func evaluate(modelURL:URL,
         guard let results = request.results as? [VNCoreMLFeatureValueObservation],
             let detectionsFeatureValue = results.first?.featureValue,
             let maskFeatureValue = results.last?.featureValue else {
-                return
+                throw "Error during prediction"
         }
         let end = Date().timeIntervalSinceReferenceDate
-        let detections = Detection.detectionsFromFeatureValue(featureValue: detectionsFeatureValue, maskFeatureValue:maskFeatureValue)
-        print(detections.count)
+        let detections = detectionsFromFeatureValue(featureValue: detectionsFeatureValue, maskFeatureValue:maskFeatureValue)
+        
+        let result = Result.with {
+            let image = Result.ImageInfo.with {
+                $0.id = String(image.id)
+                $0.datasetID = datasetId
+                $0.width = Int32(image.width)
+                $0.height = Int32(image.height)
+            }
+            $0.imageInfo = image
+            $0.detections = detections
+        }
+        outputResults.append(result)
         print(end-start)
     }
+    
+    let output = Results.with {
+        $0.results = outputResults
+    }
+    return output
+}
+
+@available(macOS 10.14, *)
+func detectionsFromFeatureValue(featureValue: MLFeatureValue,
+                                maskFeatureValue:MLFeatureValue) -> [Result.Detection] {
+    
+    guard let rawDetections = featureValue.multiArrayValue else {
+        return []
+    }
+    
+    let detectionsCount = Int(truncating: rawDetections.shape[0])
+    let detectionStride = Int(truncating: rawDetections.strides[0])
+    var detections = [Result.Detection]()
+
+    for i in 0 ..< detectionsCount {
+        
+        let probability = Double(truncating: rawDetections[i*detectionStride+5])
+        if(probability > 0.7) {
+            
+            let classId = Int(truncating: rawDetections[i*detectionStride+4])
+            let classLabel = "test"
+            let y1 = Double(truncating: rawDetections[i*detectionStride])
+            let x1 = Double(truncating: rawDetections[i*detectionStride+1])
+            let y2 = Double(truncating: rawDetections[i*detectionStride+2])
+            let x2 = Double(truncating: rawDetections[i*detectionStride+3])
+            let width = x2-x1
+            let height = y2-y1
+            
+            let detection =  Result.Detection.with {
+                $0.probability = probability
+                $0.classID = Int32(classId)
+                $0.classLabel = classLabel
+                $0.boundingBox = Result.Rect.with {
+                    $0.origin = Result.Origin.with {
+                        $0.x = x1
+                        $0.y = y1
+                    }
+                    $0.size = Result.Size.with {
+                        $0.width = width
+                        $0.height = height
+                    }
+                }
+            }
+            detections.append(detection)
+        }
+        
+    }
+    return detections
 }

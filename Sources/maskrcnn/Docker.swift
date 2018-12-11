@@ -28,22 +28,27 @@ class Docker {
     }
     
     func build(verbose:Bool = false) throws {
-        try SwiftCLI.run("docker",
-                         arguments:["build", "-t", self.name, "."],
-                         directory:self.buildURL.relativePath)
+        let result = try SwiftCLI.capture("docker",
+                                          arguments:["build", "-t", self.name, "."],
+                                          directory:self.buildURL.relativePath)
+        if(verbose) {
+            print(result.stdout)
+        }
     }
     
-    func run(mounts:[Mount], verbose:Bool = false) throws {
+    func run(mounts:[Mount], arguments:[String] = [], verbose:Bool = false) throws {
         let uuid = UUID().uuidString
-        var arguments = ["run", "--rm", "--name", uuid]
+        var allArguments = ["run", "--rm", "--name", uuid]
         for mount in mounts {
-            arguments.append("--mount")
-            arguments.append("type=bind,source=\(mount.source.relativePath),target=\(mount.destination)")
+            allArguments.append("--mount")
+            allArguments.append("type=bind,source=\(mount.source.relativePath),target=\(mount.destination)")
         }
-        arguments.append(self.name)
-        print(arguments)
-        try SwiftCLI.run("docker",
-                         arguments:arguments)
+        allArguments.append(self.name)
+        allArguments.append(contentsOf:arguments)
+        let result = try SwiftCLI.capture("docker", arguments:allArguments)
+        if(verbose) {
+            print(result.stdout)
+        }
     }
     
 }
