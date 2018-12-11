@@ -9,9 +9,11 @@ from coremltools.models.utils import convert_neural_network_weights_to_fp16
 from coremltools.models.utils import save_spec
 from coremltools.proto import NeuralNetwork_pb2
 
+from maskrcnn.model import Config
 from maskrcnn.model import MaskRCNNModel
 
-def export_models(mask_rcnn_model,
+def export_models(config,
+                  mask_rcnn_model,
                   classifier_model,
                   mask_model,
                   export_main_path,
@@ -68,6 +70,9 @@ def export_models(mask_rcnn_model,
                                               input_names=["image"],
                                               image_input_names=['image'],
                                               output_names=["detections", "mask"],
+                                              red_bias=-123.7,
+                                              green_bias=-116.8,
+                                              blue_bias=-103.9,
                                               add_custom_layers=True,
                                               custom_conversion_functions={
                                                   "ProposalLayer": convert_proposal,
@@ -157,11 +162,16 @@ if __name__ == '__main__':
     export_mask_path = params.pop('export_mask_path')
     #TODO: remove and generate instead
     export_anchors_path = params.pop('export_anchors_path')
+    
+    config = Config()
+    with open(config_path) as file:
+        config_dict = json.load(file)
+        config.__dict__.update(config_dict)
 
     model = MaskRCNNModel(config_path, initial_keras_weights=weights_path)
 
     mask_rcnn_model, classifier_model, mask_model, anchors = model.get_trained_keras_models()
-    export_models(mask_rcnn_model, classifier_model, mask_model, export_main_path, export_mask_path,
+    export_models(config, mask_rcnn_model, classifier_model, mask_model, export_main_path, export_mask_path,
                   export_anchors_path)
     anchors.tofile(export_anchors_path)
 

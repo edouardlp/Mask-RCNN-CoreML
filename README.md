@@ -37,10 +37,17 @@ This model will only be useful if instance segmentation is valuable for your use
 
 ## iOS Example Project Usage
 
-1. Download the pre-trained model files [releases page](https://github.com/edouardlp/Mask-RCNN-CoreML/releases).
-2. Make sure you downloaded the source code associated with the tagged release, and follow the usage instructions associated with that release.
-3. Place the four files  (anchors.bin, MaskRCNN.mlmodel, Mask.mlmodel, Classifier.mlmodel) in a .maskrcnn/models/coco/products directory at the root of the repository directory.
-4. Build and run
+
+1. Checkout a release
+2. Open a shell and navigate to the root of the repository
+3. Download the pre-trained model files using :
+
+```bash
+$ swift run maskrcnn download example
+```
+
+4. Open Example/iOS Example.xcodeproj
+5. Build and run on an iOS 12 device with Metal support
 
 ## Installation
 
@@ -179,7 +186,6 @@ $ swift run maskrcnn eval coco <your_model_name> -c  --year=<coco dataset year> 
 
 ## Roadmap
 
-- COCO dataset evaluation
 - Training and fine-tuning support
 - Cocoapods, Carthage, Swift Package manager and improved documentation
 - Mobile-optimized backbone and other performance optimizations
