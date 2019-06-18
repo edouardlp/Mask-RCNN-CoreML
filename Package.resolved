@@ -6,8 +6,8 @@
         "repositoryURL": "https://github.com/Alamofire/Alamofire.git",
         "state": {
           "branch": null,
-          "revision": "32573d05b91d8b7349ca31b4726e80212483f02a",
-          "version": "4.8.0"
+          "revision": "75bba56748359f297a83f620d45f72cf4ebee4e7",
+          "version": "4.8.2"
         }
       },
       {
@@ -15,8 +15,8 @@
         "repositoryURL": "https://github.com/apple/swift-protobuf.git",
         "state": {
           "branch": null,
-          "revision": "86c579d280d629416c7bd9d32a5dfacab8e0b0b4",
-          "version": "1.2.0"
+          "revision": "7bf52ab1f5ee87aeb89f2a6b9bfc6369408476f7",
+          "version": "1.5.0"
         }
       },
       {
@@ -24,8 +24,8 @@
         "repositoryURL": "https://github.com/jakeheis/SwiftCLI",
         "state": {
           "branch": null,
-          "revision": "fb076cba39c679da4e27813518d8860d8815a25b",
-          "version": "5.2.1"
+          "revision": "2f9325de7dcaa368ce5a3710b04d9df572725b14",
+          "version": "5.3.0"
         }
       }
     ]
