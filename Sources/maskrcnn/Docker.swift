@@ -5,7 +5,7 @@ class Docker {
     
     class var installed:Bool {
         do {
-            let _ = try SwiftCLI.capture("docker",
+            let _ = try Task.capture("docker",
                                          arguments:["version"])
             return true
         } catch {
@@ -28,7 +28,7 @@ class Docker {
     }
     
     func build(verbose:Bool = false) throws {
-        let result = try SwiftCLI.capture("docker",
+        let result = try Task.capture("docker",
                                           arguments:["build", "-t", self.name, "."],
                                           directory:self.buildURL.relativePath)
         if(verbose) {
@@ -45,7 +45,7 @@ class Docker {
         }
         allArguments.append(self.name)
         allArguments.append(contentsOf:arguments)
-        let result = try SwiftCLI.capture("docker", arguments:allArguments)
+        let result = try Task.capture("docker", arguments:allArguments)
         if(verbose) {
             print(result.stdout)
         }

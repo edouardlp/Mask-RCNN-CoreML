@@ -11,9 +11,9 @@ let package = Package(
             targets: ["Mask-RCNN-CoreML"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.2.0"),
-        .package(url: "https://github.com/jakeheis/SwiftCLI", from: "5.2.1"),
-        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "4.8.0")
+        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.5.0"),
+        .package(url: "https://github.com/jakeheis/SwiftCLI", from: "5.3.0"),
+        .package(url: "https://github.com/Alamofire/Alamofire.git", from: "4.8.2")
     ],
     targets: [
         .target(
