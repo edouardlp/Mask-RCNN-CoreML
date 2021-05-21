@@ -1,4 +1,4 @@
 keras==2.1.6
-tensorflow==1.5.0
+tensorflow==2.5.0
 coremltools
 git+git://github.com/edouardlp/Mask-RCNN-Keras#egg=maskrcnn
